@@ -312,6 +312,37 @@
         var rbSiyahLab = pnlSiyah.add("radiobutton", undefined, "Lab L E\u011frisi (Klasik parlakl\u0131k e\u011frisi)");
         rbSiyahCmyk.value = true;
 
+        var pnlMerge = p2.add("panel", undefined, "Yak\u0131n Renk Birle\u015ftirme (%)");
+        pnlMerge.orientation = "column";
+        pnlMerge.alignChildren = ["left", "top"];
+        pnlMerge.spacing = 6;
+        pnlMerge.margins = 12;
+
+        var grpMergeBtns = pnlMerge.add("group");
+        grpMergeBtns.spacing = 6;
+        var btnMerge3 = grpMergeBtns.add("button", undefined, "%3");
+        var btnMerge5 = grpMergeBtns.add("button", undefined, "%5");
+        var btnMerge7 = grpMergeBtns.add("button", undefined, "%7");
+        var btnMerge10 = grpMergeBtns.add("button", undefined, "%10");
+        var btnMerge15 = grpMergeBtns.add("button", undefined, "%15");
+        btnMerge3.preferredSize = [46, 24];
+        btnMerge5.preferredSize = [46, 24];
+        btnMerge7.preferredSize = [46, 24];
+        btnMerge10.preferredSize = [46, 24];
+        btnMerge15.preferredSize = [46, 24];
+        grpMergeBtns.add("statictext", undefined, "  \u00d6zel (%):");
+        var txtMergePct = grpMergeBtns.add("edittext", undefined, "5");
+        txtMergePct.characters = 5;
+
+        btnMerge3.onClick = function () { txtMergePct.text = "3"; };
+        btnMerge5.onClick = function () { txtMergePct.text = "5"; };
+        btnMerge7.onClick = function () { txtMergePct.text = "7"; };
+        btnMerge10.onClick = function () { txtMergePct.text = "10"; };
+        btnMerge15.onClick = function () { txtMergePct.text = "15"; };
+
+        var lblMergeHint = pnlMerge.add("statictext", undefined, "Se\u00e7ilen % i\u00e7indeki yak\u0131n renkler tek spot birle\u015fir; \u00fcst\u00fcndeki renklerde degrade varsa tram, yoksa trams\u0131z ayr\u0131 renk \u00e7\u0131kar.", { multiline: true });
+        lblMergeHint.preferredSize = [480, 30];
+
         // ==================== ADIM 3: Baski Olcusu & Zemin Maskesi ====================
         var p3 = stack.add("group");
         p3.orientation = "column";
@@ -581,7 +612,7 @@
 
             return "Kaynak: " + srcStr + "\n"
                 + "Ti\u015f\u00f6rt Seti: " + kumasStr + "\n"
-                + "Profil & Siyah: " + profStr + "  |  " + siyahStr + "\n"
+                + "Profil & Siyah: " + profStr + "  |  " + siyahStr + "  |  Yak\u0131n Renk Birle\u015ftirme: %" + (parseFloat(String(txtMergePct.text).replace(",", ".")) || 5) + "\n"
                 + "\u00d6l\u00e7\u00fc & Zemin: " + sizeStr + "  |  " + bgStr + "\n"
                 + "Tram & Telafi: " + lpiStr + " @ " + angStr + "  |  Choke: " + (ddChoke.selection.index === 1 ? "3 px" : "2 px")
                 + "  |  %5 A\u00e7ma: " + (chkAciklama.value ? "A\u00e7\u0131k" : "Kapal\u0131")
@@ -621,10 +652,17 @@
                     return;
                 }
             }
-            if (curStep === 1 && rbProfCustom.value) {
-                var hNum = parseInt(txtCustomHead.text, 10);
-                if (isNaN(hNum) || hNum < 5 || hNum > 10) {
-                    alert("\u00d6zel kafa say\u0131s\u0131 5 ile 10 aras\u0131nda olmal\u0131d\u0131r.");
+            if (curStep === 1) {
+                if (rbProfCustom.value) {
+                    var hNum = parseInt(txtCustomHead.text, 10);
+                    if (isNaN(hNum) || hNum < 5 || hNum > 10) {
+                        alert("\u00d6zel kafa say\u0131s\u0131 5 ile 10 aras\u0131nda olmal\u0131d\u0131r.");
+                        return;
+                    }
+                }
+                var mPct = parseFloat(String(txtMergePct.text).replace(",", "."));
+                if (isNaN(mPct) || mPct < 0 || mPct > 30) {
+                    alert("Yak\u0131n Renk Birle\u015ftirme (%) 0 ile 30 aras\u0131nda olmal\u0131d\u0131r.");
                     return;
                 }
             }
@@ -686,6 +724,7 @@
             choke: choke,
             baskiAciklama: chkAciklama.value ? 0.05 : 0.0,
             degradeBindirme: chkDegrade.value ? 0.85 : 0.0,
+            renkBirlestirme: Math.max(0, Math.min(30, parseFloat(String(txtMergePct.text).replace(",", ".")) || 5.0)),
             krosEtiket: chkKros.value,
             beden: trAscii(txtBeden.text) || "s-xl",
             yuz: trAscii(txtYuz.text) || "on baski",
@@ -753,6 +792,7 @@
                 + ' --choke ' + cfg.choke
                 + ' --baski-aciklama ' + cfg.baskiAciklama
                 + ' --degrade-bindirme ' + cfg.degradeBindirme
+                + ' --renk-birlestirme ' + cfg.renkBirlestirme
                 + (cfg.krosEtiket ? ' --kros-etiket' : ' --kros-yok')
                 + ' --beden "' + cfg.beden + '"'
                 + ' --yuz "' + cfg.yuz + '"'
