@@ -242,6 +242,9 @@ def save_1bit(ink, path, ppi=508):           # film mantigi: basilacak yer SIYAH
 3. **Renk Katmanı ve Spot Kanal Ayırıcı (açık PSD üzerinde):**
    - Script: `tools/photoshop/kedihane_renk_ve_emprime_ayirici.jsx` (v1.2, Photoshop CS6 ve CC 2018–2026)
    - İşlev: Açık belgeyi Color Range ile renk katmanlarına ayırır ve emprime serigrafi için spot kanallar üretir (`choke = 2 px` varsayılan, `fon = 100%`, üst renkler `16%` Solidity).
+4. **Hibrit 5 Adımlı Emprime Sihirbazı (`emprimeci-mechi.jsx` / `emprime_lap_ayirici.jsx` v2):**
+   - Script: `tools/photoshop/emprimeci-mechi.jsx` (`emprime_lap_ayirici.jsx` ile birebir aynı; Photoshop 2021 `Presets\Scripts\` menüsüne `emprimeci-mechi` adıyla yerleşik kurulur) + Python motoru `tools/lap_aile_ayir.py`.
+   - İşlev: Açık belgeyi (veya seçilen görseli) 5 adımlı `< Geri` / `İleri >` / `▶ Başlat` sihirbazıyla ayırır; En (cm) girişine göre Boy (cm) oranını canlı hesaplar, `Orjinal_Gorsel` + `Acik_Tisort_Seti` + `Koyu_Tisort_Seti` katmanlı ve spot kanallı tek `.psd`/`.tif` üretir (`%TEMP%` otomatik temizlenir, sıfır klasör kalabalığı). Usta kurallarını (Açık LAP + %50–60 Koyu Tram, CMYK `K`, %85 degrade alt bindirme, %5 baskı açma, `45/55 LPI`, `15°/45°/72°`) uygular.
 
 ---
 

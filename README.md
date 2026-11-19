@@ -39,7 +39,7 @@ Photoshop'ta Multichannel Spot Color belge: `tools/photoshop/koyu_tisort_photosh
 - `docs/proje-talimatlari.md`: Claude Project talimat metni
 - `docs/arastirma/`: Perplexity promptu ve kaynaklı araştırma raporu
 - `docs/ornekler/`: önizleme görselleri
-- `tools/`: `tramsiz.py` (duz renkli isler), `bolge_am.py`, `hibrit.py`, `hibrit2.py` + `fs_dither.c` (duz + fotografik hibrit isler), `katman/` (`bolge_murekkep_katman.py`, `uc_renk_katman.py` vb.), `photoshop/` (`kedihane_renk_ve_emprime_ayirici.jsx`, `psd_olustur_tek_adim.jsx` vb.), `arsiv/` (yanlis eski denemeler)
+- `tools/`: `tramsiz.py` (duz renkli isler), `lap_aile_ayir.py` (5 adımlı sihirbaz arka ucu: Açık LAP + Koyu Tram, CMYK K, %85 degrade, tek dosya PSD/TIF), `lap_overprint_am.py`, `bolge_am.py`, `hibrit.py`, `hibrit2.py` + `fs_dither.c`, `film_etiket_ve_kros.py`, `psd_incele.py`, `katman/` (`bolge_murekkep_katman.py`, `uc_renk_katman.py` vb.), `photoshop/` (`emprimeci-mechi.jsx`, `emprime_lap_ayirici.jsx`, `master_psd_olustur.jsx`, `kedihane_renk_ve_emprime_ayirici.jsx`, `psd_olustur_tek_adim.jsx` vb.), `arsiv/` (yanlis eski denemeler)
 
 ## Notlar
 Orijinal görseller ve üretilen filmler (büyük dosyalar) repoya konmaz.
