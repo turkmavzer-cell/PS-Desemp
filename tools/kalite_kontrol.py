@@ -1,101 +1,258 @@
 #!/usr/bin/env python3
-"""Film ciktisi icin otomatik kalite kontrol. Karar rehberi bolum 7: docs/arastirma/gorsel-analiz-karar-rehberi.md
-Kullanim: python3 tools/kalite_kontrol.py cikti_klasoru [kaynak.png] [PPI=508]
-cikti_klasoru: Acik_Tisort/*.png (1-bit, siyah=murekkep) + kanallar_hibrit.json
-kaynak.png (istege bagli): ayni boyutta kaynak; varsa zit renk beneği (murekkep tonu kaynak tonundan >110 derece farkli) olculur, her renk cifti icin.
-Cikis kodu 1 = uyari var. Esikler [yorum]; atolye testiyle ayarlanmali. Gozle dogrulamanin yerini TUTMAZ.
+"""Film ciktisi icin otomatik kalite kontrol (v2 — yigilmali / indeks / tramsiz profilleri).
+Karar rehberi bolum 7: docs/arastirma/gorsel-analiz-karar-rehberi.md
+
+Kullanim:
+  python3 tools/kalite_kontrol.py cikti_klasoru [kaynak.png] [PPI=508]
+Ortam degiskenleri:
+  PPI=508   SET=<SetAdi>   MOD=yigilmali|indeks|tramsiz
+Cikis kodu 1 = uyari var, 0 = temiz. Gozle dogrulamanin yerini TUTMAZ.
 """
-import sys, os, json
+import sys, os, json, math
 import numpy as np, cv2
 from PIL import Image
 Image.MAX_IMAGE_PIXELS = None
 
-d = sys.argv[1]; srcp = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].isdigit() else None
-PPI_EXP = int(os.environ.get('PPI', 508))
-J = json.load(open(os.path.join(d, 'kanallar_hibrit.json')))
-SETN = os.environ.get('SET') or list(J['sets'])[0]; setn = SETN; sets = J['sets'][setn]
-warn = []; info = []
-films = []
-for nm, fn, rgb in sets:
-    im = Image.open(os.path.join(d, setn, fn))
-    if im.mode != '1': warn.append(f'{fn}: 1-bit degil ({im.mode})')
-    dp = im.info.get('dpi', (None,))[0]
-    if dp is None or abs(dp-PPI_EXP) > 1: warn.append(f'{fn}: PPI meta {dp}, beklenen {PPI_EXP}')
-    a = ~np.array(im.convert('1'))                         # True = murekkep
-    films.append((nm, fn, rgb, a))
-H, W = films[0][3].shape
-for nm, fn, rgb, a in films:
-    if a.shape != (H, W): warn.append(f'{fn}: boyut farkli {a.shape}')
-info.append(f'boyut {W}x{H} px, {len(films)} film')
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-# kapsama
-tot = H*W
-for nm, fn, rgb, a in films:
-    c = a.sum()/tot*100
-    info.append(f'  {nm:<18} kapsama %{c:.2f}')
-    if c < 0.5 and 'Fon' not in nm: warn.append(f'{nm}: kapsama %{c:.2f} <0,5 — neredeyse kullanilmayan murekkep (birlestir ya da atilacak kafa)')
 
-# cakisma (indeks ayriminda 0 olmali)
-for i in range(len(films)):
-    for j in range(i+1, len(films)):
-        ov = (films[i][3] & films[j][3]).sum()
-        if 'Fon' in films[i][0] or 'Fon' in films[j][0] or J.get('lap_altlik'): continue   # lap_altlik: taban noktalarin altina bilerek uzanir   # fon (altlik) renklerin altinda olmali
-        if ov > 0.001*min(films[i][3].sum(), films[j][3].sum()):
-            warn.append(f'{films[i][0]} ile {films[j][0]} cakisiyor: {ov} px')
+def parse_args():
+    if len(sys.argv) < 2:
+        raise SystemExit("Kullanim: python3 tools/kalite_kontrol.py cikti_klasoru [kaynak.png] [PPI=508]")
+    d = sys.argv[1]
+    srcp = None
+    ppi_arg = None
+    for a in sys.argv[2:]:
+        if a.isdigit():
+            ppi_arg = int(a)
+        elif srcp is None:
+            srcp = a
+    ppi_exp = ppi_arg or int(os.environ.get('PPI', 508))
+    return d, srcp, ppi_exp
 
-# izole kucuk noktalar
-cell = PPI_EXP/45.0
-tiny_area = max(3, int(0.03*cell*cell))                    # %3 nokta alani ~ 4 px (508 PPI, 45 lpi)
-for nm, fn, rgb, a in films:
-    nlab, lab, st, _ = cv2.connectedComponentsWithStats(a.astype(np.uint8), connectivity=8)
-    areas = st[1:, 4]
-    tn = int((areas <= tiny_area).sum()); tot_n = len(areas)
-    frac = tn/max(tot_n, 1)
-    info.append(f'  {nm:<18} bilesen {tot_n}, <= {tiny_area}px olan {tn} (%{frac*100:.1f})')
-    if frac > 0.10 and tn > 2000: warn.append(f'{nm}: %{frac*100:.0f} bilesen <= {tiny_area}px (elekte tutunmayacak mikro nokta)')
 
-# duz (tramsiz) bolgeler: kenar pürüzlülügü + film rengi kaynak renge uyuyor mu (kanallar_hibrit.json 'duz_bolgeler', hibrit2.py yazar)
-# Olcu (ayi, 2026-10-14): cikintili rozet 0,070, temiz lacivert yazi 0,006 px/px; esik 0,03. Acma (5 px elips) ile silinen piksel / acilmis kenar uzunlugu.
-for w_ in J.get('uyarilar', []): warn.append(w_)
-for dz in J.get('duz_bolgeler', []):
-    fa = [f for f in films if f[1] == dz.get('film')]
-    if not fa or not dz.get('bbox'): continue
-    nm, fn, rgb, a = fa[0]; bx, by, bw, bh = dz['bbox']
-    m = a[by:by+bh, bx:bx+bw].astype(np.uint8)
-    mo = cv2.morphologyEx(m, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
-    cs, _ = cv2.findContours(mo, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE); per = max(sum(len(c) for c in cs), 1)
-    rough = float((m.sum()-mo.sum())/per)
-    sl = cv2.cvtColor(np.array([[dz['kaynak_rgb']]], np.float32)/255, cv2.COLOR_RGB2Lab)[0, 0]
-    il = cv2.cvtColor(np.array([[rgb]], np.float32)/255, cv2.COLOR_RGB2Lab)[0, 0]; de = float(np.linalg.norm(sl-il))
-    info.append(f'  duz bolge {dz["ad"]:<10} film {nm}: kenar puruzlulugu {rough:.3f}, renk dE {de:.1f}')
-    if rough > 0.03: warn.append(f'duz bolge {dz["ad"]} ({nm}): kenar cikinti/capakli (puruzluluk {rough:.3f} > 0,03); FLAT_R ile yumusat ya da kaynagi kontrol et')
-    if de > 12: warn.append(f'duz bolge {dz["ad"]}: film rengi {nm} kaynak renkten dE {de:.0f} uzak (rozet/logo yanlis murekkebe gitmis olabilir)')
+def rgb_to_lab_single(rgb):
+    return cv2.cvtColor(np.array([[rgb]], np.float32) / 255.0, cv2.COLOR_RGB2Lab)[0, 0]
 
-# zit renk beneği: murekkebin tonu, kaynak pikselin tonundan >110 derece farkliysa (genel kural, her renk cifti)
-if srcp:
-    src = np.array(Image.open(srcp).convert('RGB'))
-    if src.shape[:2] != (H, W): warn.append('kaynak boyutu film boyutuyla ayni degil, zit renk kontrolu atlandi')
-    else:
-        f4 = 4; h4, w4 = H//f4, W//f4
-        sl = cv2.cvtColor(cv2.GaussianBlur(cv2.resize(src, (w4, h4), interpolation=cv2.INTER_AREA), (0, 0), 3).astype(np.float32)/255, cv2.COLOR_RGB2Lab)
-        sch = np.hypot(sl[..., 1], sl[..., 2]); shu = np.degrees(np.arctan2(sl[..., 2], sl[..., 1]))
-        del src
-        for nm, fn, rgb, a in films:
-            il = cv2.cvtColor(np.array([[rgb]], np.float32)/255, cv2.COLOR_RGB2Lab)[0, 0]
-            ch = float(np.hypot(il[1], il[2])); hu = float(np.degrees(np.arctan2(il[2], il[1])))
-            if ch <= 5: continue                                # notr murekkep: tonu yok (soluk renkler DAHIL)
-            cov = cv2.resize(a.astype(np.float32), (w4, h4), interpolation=cv2.INTER_AREA)
-            dh = np.abs((shu-hu+180) % 360-180)
-            bad = (sch > 8) & (dh > 90)
-            if il[0] < 35: bad &= (sl[..., 0] > 55)             # en koyu: cizgide degil, acik/orta alanda ton koyulastirma
-            frac = float((cov*bad).sum()/max(cov.sum(), 1e-6))
-            info.append(f'  {nm:<18} kaynak tonuyla uyumsuz (>90 derece) murekkep payi %{frac*100:.2f}')
-            esik = 0.03 if il[0] < 35 else 0.015                # en koyu: kontur payi dogal
-            if frac > esik: warn.append(f'{nm}: murekkep payinin %{frac*100:.1f}i tonu uyumsuz kaynak alanda (zit renk beneği: orn. bej/kahve icinde mavi)')
 
-print('\n'.join(info))
-print()
-if warn:
-    print('UYARILAR:'); [print(' -', w) for w in warn]
-    sys.exit(1)
-print('Otomatik kontrol temiz. Yine de %100 kesit ve onizlemeyle gozle dogrula.')
+def normalize_channel_entry(entry):
+    """Hem eski [nm, fn, rgb] hem yeni {'ad','dosya','rgb','rol','solidity','aile'} formatini destekler."""
+    if isinstance(entry, dict):
+        return {
+            'ad': entry.get('ad', entry.get('dosya', '')),
+            'dosya': entry['dosya'],
+            'rgb': entry['rgb'],
+            'rol': entry.get('rol', 'tram'),
+            'solidity': entry.get('solidity', None),
+            'aile': entry.get('aile', None),
+        }
+    nm, fn, rgb = entry[0], entry[1], entry[2]
+    low = nm.lower()
+    rol = 'fon' if ('fon' in low or 'underbase' in low or 'beyaz zemin' in low) else 'tram'
+    return {'ad': nm, 'dosya': fn, 'rgb': rgb, 'rol': rol, 'solidity': None, 'aile': None}
+
+
+def is_underbase_or_white(ch):
+    low = ch['ad'].lower()
+    return ch['rol'] in ('fon', 'fon_koyusuz', 'ust_beyaz', 'kumas') or ('fon' in low) or ('underbase' in low) or ('beyaz zemin' in low)
+
+
+def main():
+    d, srcp, PPI_EXP = parse_args()
+    meta_file = os.path.join(d, 'kanallar_hibrit.json')
+    if not os.path.exists(meta_file):
+        meta_file = os.path.join(d, 'kanallar_tramsiz.json')
+    with open(meta_file, encoding='utf-8') as fp:
+        J = json.load(fp)
+
+    mod = os.environ.get('MOD') or J.get('mod') or ('tramsiz' if 'tramsiz' in os.path.basename(meta_file) else ('yigilmali' if J.get('lap_altlik') else 'indeks'))
+    set_names = [os.environ['SET']] if os.environ.get('SET') else list(J['sets'].keys())
+
+    warn = []
+    info = [f'Mod: {mod} | Beklenen PPI: {PPI_EXP} | Setler: {", ".join(set_names)}']
+
+    for setn in set_names:
+        info.append(f'--- Set: {setn} ---')
+        raw_sets = J['sets'][setn]
+        films = []
+        for entry in raw_sets:
+            ch = normalize_channel_entry(entry)
+            fpath = os.path.join(d, setn, ch['dosya'])
+            im = Image.open(fpath)
+            if im.mode != '1':
+                warn.append(f"[{setn}] {ch['dosya']}: 1-bit degil ({im.mode})")
+            dp = im.info.get('dpi', (None,))[0]
+            if dp is None or abs(dp - PPI_EXP) > 1:
+                warn.append(f"[{setn}] {ch['dosya']}: PPI meta {dp}, beklenen {PPI_EXP}")
+            a = ~np.array(im.convert('1'))  # True = murekkep
+            ch['mask'] = a
+            ch['lab'] = rgb_to_lab_single(ch['rgb'])
+            films.append(ch)
+
+        if not films:
+            warn.append(f'[{setn}] hic film yok')
+            continue
+
+        H, W = films[0]['mask'].shape
+        for ch in films:
+            if ch['mask'].shape != (H, W):
+                warn.append(f"[{setn}] {ch['dosya']}: boyut farkli {ch['mask'].shape}")
+        info.append(f'boyut {W}x{H} px ({W/PPI_EXP*2.54:.1f}x{H/PPI_EXP*2.54:.1f} cm), {len(films)} film')
+
+        # 1) Kapsama ve Solidity kontrolu
+        tot = H * W
+        for ch in films:
+            c = ch['mask'].sum() / tot * 100.0
+            sol_s = f" sol={ch['solidity']}%" if ch['solidity'] is not None else ""
+            info.append(f"  {ch['ad']:<22} rol={ch['rol']:<10} kapsama %{c:.2f}{sol_s}")
+            if c < 0.5 and not is_underbase_or_white(ch):
+                warn.append(f"[{setn}] {ch['ad']}: kapsama %{c:.2f} <0,5 — neredeyse kullanilmayan murekkep")
+            if ch['solidity'] is not None:
+                if ch['rol'] in ('fon', 'fon_koyusuz', 'kumas') and ch['solidity'] != 100:
+                    warn.append(f"[{setn}] {ch['ad']}: fon/kumas Solidity %{ch['solidity']} (beklenen %100)")
+                elif ch['rol'] in ('tram', 'lap', 'ust_beyaz') and ch['solidity'] == 100 and mod == 'yigilmali':
+                    info.append(f"    (not: {ch['ad']} Solidity %100; atolye overprint onizlemesi icin %16 onerilir)")
+
+        # 2) Cakisma kontrolu (mode gore)
+        # Eger alt 3 cm etiket+kros seridi varsa (kros_etiket=true veya boy farki),
+        # kanallar arasi cakisma kontrolunu desen alaninda (alt kros+etiket haric) yap:
+        strip_px = int(round(30 * (PPI_EXP / 25.4))) if J.get('kros_etiket') else 0
+        H_art_ov = H - strip_px if (strip_px > 0 and H > strip_px * 2) else H
+        for i in range(len(films)):
+            for j in range(i + 1, len(films)):
+                ci, cj = films[i], films[j]
+                if is_underbase_or_white(ci) or is_underbase_or_white(cj):
+                    continue
+                mi = ci['mask'][:H_art_ov, :]
+                mj = cj['mask'][:H_art_ov, :]
+                min_area = min(int(mi.sum()), int(mj.sum()))
+                if min_area == 0:
+                    continue
+                ov = int((mi & mj).sum())
+                ov_pct = ov / min_area * 100.0
+
+                if mod == 'indeks':
+                    if ov_pct > 0.1:
+                        warn.append(f"[{setn}] {ci['ad']} ile {cj['ad']} cakisiyor: {ov} px (%{ov_pct:.2f})")
+                elif mod == 'yigilmali':
+                    # Ayni aile icinde veya siyah/notr golge ustunde yigilma serbest (700/701 dot-on-dot)
+                    li, lj = ci['lab'], cj['lab']
+                    chi_c, chj_c = float(math.hypot(li[1], li[2])), float(math.hypot(lj[1], lj[2]))
+                    if li[0] < 22 or lj[0] < 22 or chi_c < 5 or chj_c < 5:
+                        continue  # siyah/koyu notr ust uste serbest
+                    if ci['aile'] is not None and cj['aile'] is not None and ci['aile'] == cj['aile']:
+                        continue  # ayni aile ici lap+tram veya acik+koyu yigilma serbest
+                    # Zit kromatik aileler arasi cakisma YASAK (Lab ton farki > 110 derece)
+                    hi_deg = math.degrees(math.atan2(li[2], li[1]))
+                    hj_deg = math.degrees(math.atan2(lj[2], lj[1]))
+                    dh = abs(((hi_deg - hj_deg + 180.0) % 360.0) - 180.0)
+                    if dh > 110.0 and ov_pct > 1.5:
+                        warn.append(f"[{setn}] ZIT AILE CAKISMASI ({dh:.0f}°): {ci['ad']} ile {cj['ad']} %{ov_pct:.2f} ({ov} px)")
+                elif mod == 'tramsiz':
+                    # Trap payindan buyuk anormal cakisma kontrolu
+                    if ov_pct > 15.0:
+                        warn.append(f"[{setn}] tramsiz asiri cakisma: {ci['ad']} ile {cj['ad']} %{ov_pct:.2f}")
+
+        # 3) Izole kucuk noktalar (<= 3-4 px)
+        cell = PPI_EXP / 45.0
+        tiny_area = max(3, int(0.03 * cell * cell))
+        for ch in films:
+            nlab, _, st, _ = cv2.connectedComponentsWithStats(ch['mask'].astype(np.uint8), connectivity=8)
+            areas = st[1:, 4] if nlab > 1 else np.array([], dtype=np.int32)
+            tn = int((areas <= tiny_area).sum())
+            tot_n = len(areas)
+            frac = tn / max(tot_n, 1)
+            info.append(f"  {ch['ad']:<22} bilesen {tot_n}, <= {tiny_area}px: {tn} (%{frac*100:.1f})")
+            is_black_tram = (ch['rol'] == 'tram' and ch['lab'][0] < 20)
+            if ch['rol'] in ('fon', 'fon_koyusuz', 'lap', 'ust_beyaz'):
+                if frac > 0.02 and tn > 50:
+                    warn.append(f"[{setn}] {ch['ad']} (duz/lap): %{frac*100:.1f} ({tn}) mikro parca <= {tiny_area}px")
+            elif not is_black_tram:
+                if frac > 0.10 and tn > 2000:
+                    warn.append(f"[{setn}] {ch['ad']}: %{frac*100:.0f} bilesen <= {tiny_area}px (elekte tutunmayacak mikro nokta)")
+
+        # 4) Duz bolgeler kontrolu
+        for dz in J.get('duz_bolgeler', []):
+            fa = [c for c in films if c['dosya'] == dz.get('film')]
+            if not fa or not dz.get('bbox'):
+                continue
+            ch = fa[0]
+            bx, by, bw, bh = dz['bbox']
+            m = ch['mask'][by:by + bh, bx:bx + bw].astype(np.uint8)
+            mo = cv2.morphologyEx(m, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+            cs, _ = cv2.findContours(mo, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+            per = max(sum(len(c) for c in cs), 1)
+            rough = float((m.sum() - mo.sum()) / per)
+            sl = rgb_to_lab_single(dz['kaynak_rgb'])
+            de = float(np.linalg.norm(sl - ch['lab']))
+            info.append(f"  duz bolge {dz['ad']:<10} film {ch['ad']}: kenar puruzlulugu {rough:.3f}, renk dE {de:.1f}")
+            if rough > 0.03:
+                warn.append(f"[{setn}] duz bolge {dz['ad']} ({ch['ad']}): puruzluluk {rough:.3f} > 0,03")
+            if de > 12:
+                warn.append(f"[{setn}] duz bolge {dz['ad']}: renk dE {de:.1f} > 12")
+
+        # 5) Zit renk benegi (kaynak verilmisse — boyut farkliysa otomatik olcekler, RGBA alfa maskeler)
+        if srcp:
+            im_s = Image.open(srcp)
+            f4 = 4
+            h4, w4 = max(1, H // f4), max(1, W // f4)
+            if im_s.mode in ('RGBA', 'LA') or ('transparency' in im_s.info):
+                rgba_s = np.array(im_s.convert('RGBA'))
+                af_s = rgba_s[..., 3:4].astype(np.float32) / 255.0
+                src = np.clip(rgba_s[..., :3] * af_s + 255.0 * (1.0 - af_s), 0, 255).astype(np.uint8)
+                src_alpha = rgba_s[..., 3]
+            else:
+                src = np.array(im_s.convert('RGB'))
+                src_alpha = None
+            # Eger filmlerde alt 3 cm etiket+kros seridi varsa (film boyu kaynak orantisindan ~600 px uzunsa),
+            # kaynak ton uyumsuzlugu kontrolunu yalnizca desen yuksekliginde (H_art) yap:
+            H_art = int(round(im_s.height * (W / float(im_s.width))))
+            if H > H_art and (H - H_art) <= int(round(45 * (PPI_EXP / 25.4))):
+                H_chk = H_art
+            else:
+                H_chk = H
+            h4, w4 = max(1, H_chk // f4), max(1, W // f4)
+            if src_alpha is not None:
+                valid_s = cv2.resize(src_alpha, (w4, h4), interpolation=cv2.INTER_AREA) >= 128
+            else:
+                valid_s = np.ones((h4, w4), dtype=bool)
+            src_s = cv2.resize(src, (w4, h4), interpolation=cv2.INTER_AREA)
+            sl = cv2.cvtColor(cv2.GaussianBlur(src_s, (0, 0), 3).astype(np.float32) / 255.0, cv2.COLOR_RGB2Lab)
+            sch = np.hypot(sl[..., 1], sl[..., 2])
+            shu = np.degrees(np.arctan2(sl[..., 2], sl[..., 1]))
+            del src, src_s
+            for ch in films:
+                if is_underbase_or_white(ch):
+                    continue
+                il = ch['lab']
+                ch_c = float(math.hypot(il[1], il[2]))
+                hu = float(math.degrees(math.atan2(il[2], il[1])))
+                if ch_c <= 5.0:
+                    continue
+                cov = cv2.resize(ch['mask'][:H_chk, :].astype(np.float32), (w4, h4), interpolation=cv2.INTER_AREA)
+                dh = np.abs(((shu - hu + 180.0) % 360.0) - 180.0)
+                bad = valid_s & (sch > 8.0) & (dh > 90.0)
+                if il[0] < 35.0:
+                    bad &= (sl[..., 0] > 55.0)
+                frac = float((cov * bad).sum() / max(cov.sum(), 1e-6))
+                info.append(f"  {ch['ad']:<22} kaynak tonuyla uyumsuz (>90°) payi %{frac*100:.2f}")
+                esik = 0.03 if il[0] < 35.0 else 0.015
+                if frac > esik:
+                    warn.append(f"[{setn}] {ch['ad']}: %{frac*100:.1f} tonu uyumsuz kaynak alanda (zit renk benegi)")
+
+    for w_ in J.get('uyarilar', []):
+        warn.append(w_)
+
+    print('\n'.join(info))
+    print()
+    if warn:
+        print('UYARILAR:')
+        for w in warn:
+            print(' -', w)
+        sys.exit(1)
+    print('Otomatik kontrol temiz. Yine de %100 kesit ve onizlemeyle gozle dogrula.')
+
+
+if __name__ == '__main__':
+    main()
