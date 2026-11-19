@@ -25,6 +25,7 @@ Systematically repair and reconstruct all areas obscured or distorted by garment
 [TİPOGRAFİ MODÜLÜ:
  - Sanatsal/Noktalı Metin ise: Graphical Text Fidelity: Meticulously recreate the exact shapes, proportions, and dot-matrix construction of the text '[TAM METİN]' as an integral graphic element.
  - Bozuk Standart Font ise: CRITICAL Text Idealization: COMPLETELY DISCARD the warped spatial baseline. Re-generate '[TAM METİN]' in clean [FONT STİLİ] on a razor-straight horizontal baseline.
+ - Kıvrım Üzerindeki El Çizimi / Fırça Yazı ise (Modül C4): CRITICAL Hybrid Geometry Reset: COMPLETELY DISCARD the photo's 3D fabric-fold geometry (horizontal foreshortening, narrowed letters, wavy baseline, tilted axes, warped box). Preserve ONLY the hand-painted brush style and reconstruct '[TAM METİN]' and its box from scratch on a razor-straight baseline, upright letter axes, consistent letter widths, and a level rectangular frame.
  - İstenmeyen Etiket/Logo: DO NOT include any garment tags, size labels, or extraneous text.]
 
 [CRITICAL PROHIBITION PROTOCOL - HIGHEST PRIORITY]

@@ -1,4 +1,4 @@
-# PS-Kanal-Ayirimi
+# PS-Desemp
 
 Bir görseli tekstil baskı (emprime / serigrafi) için **renk ayrımı filmlerine** (spot mürekkep kanalları) ayırma çalışması. Claude + Photoshop (bilgisayar kontrolü) + Python ile geliştirilir.
 
@@ -29,6 +29,8 @@ Photoshop'ta Multichannel Spot Color belge: `tools/photoshop/koyu_tisort_photosh
 
 ## Klasörler
 - `docs/bozuk-gorselden-desen-uretim-promptu.md`: **Nano Banana Pro ile bozuk/giyilmiş görselden kusursuz 2D desen üretim (MeChi 3.3 & Desen Mühendisliği) global ve değişken prompt sistemi**
+- `docs/emprime-kanal-ayirma.md`: emprime / serigrafi kanal ayırma, AM tramlama, birleştirilmiş JSX v1.1 ve sentetik test sonuçları rehberi
+- `docs/katman-ayirma.md`: yumuşak alfa matematiksel formülasyonu (`C = αF + (1−α)B`), `simplex_ls` bölge grupları ve `palette_alpha` boru hattı rehberi
 - `docs/is-akisi-tek-ve-iki-asama.md`: tek ve iki aşamalı yöntemin açıklaması
 - `docs/ogrenilenler.md`: doğru/yanlış yöntemler, karar tablosu, sayısal değerler (**ana bilgi tabanı**)
 - `docs/yontem-gunlugu.md`: her denemenin kaydı
@@ -37,7 +39,7 @@ Photoshop'ta Multichannel Spot Color belge: `tools/photoshop/koyu_tisort_photosh
 - `docs/proje-talimatlari.md`: Claude Project talimat metni
 - `docs/arastirma/`: Perplexity promptu ve kaynaklı araştırma raporu
 - `docs/ornekler/`: önizleme görselleri
-- `tools/`: `tramsiz.py` (duz renkli isler), `hibrit.py` + `fs_dither.c` (duz + fotografik hibrit isler), `photoshop/` (JSX), `arsiv/` (yanlis eski denemeler)
+- `tools/`: `tramsiz.py` (duz renkli isler), `bolge_am.py`, `hibrit.py`, `hibrit2.py` + `fs_dither.c` (duz + fotografik hibrit isler), `katman/` (`bolge_murekkep_katman.py`, `uc_renk_katman.py` vb.), `photoshop/` (`kedihane_renk_ve_emprime_ayirici.jsx`, `psd_olustur_tek_adim.jsx` vb.), `arsiv/` (yanlis eski denemeler)
 
 ## Notlar
 Orijinal görseller ve üretilen filmler (büyük dosyalar) repoya konmaz.

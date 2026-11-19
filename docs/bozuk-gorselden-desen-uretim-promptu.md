@@ -2,7 +2,7 @@
 
 Bu kılavuz, `H:\Drive'ım\PROMPTLAR` altındaki **MeChi 3.3**, **Desen Mühendisliği II (v2.0)**, **Desen Mühendisliği Kişilik (v3.0)** ve **Giysi Deseni Temizleme ve Ayırma** protokollerinin sentezidir.
 
-Amacı: Kullanımı imkansız, bozuk, eksik, düşük kaliteli, kırışık kumaş üzerindeki veya **model üzerinde giyilmiş tişört/elbise/kumaş** fotoğraflarındaki deseni; hiçbir mikro ayrıntıyı atlamadan, **Nano Banana Pro (Gemini Image)** ile tekstil baskı ve renk ayrımına (`PS-Kanal-Ayirimi`) doğrudan girebilecek **2K/4K, %100 düz (flat 2D), gergin tuval ve sıfır doku/gölge** içeren tekil bir görsele dönüştürmektir.
+Amacı: Kullanımı imkansız, bozuk, eksik, düşük kaliteli, kırışık kumaş üzerindeki veya **model üzerinde giyilmiş tişört/elbise/kumaş** fotoğraflarındaki deseni; hiçbir mikro ayrıntıyı atlamadan, **Nano Banana Pro (Gemini Image)** ile tekstil baskı ve renk ayrımına (`PS-Desemp`) doğrudan girebilecek **2K/4K, %100 düz (flat 2D), gergin tuval ve sıfır doku/gölge** içeren tekil bir görsele dönüştürmektir.
 
 ---
 
@@ -113,6 +113,10 @@ Global şablondaki ilgili yerlere görselin tipine göre aşağıdaki hazır mod
 * **C3. Metin Yok veya İstenmeyen Etiket/Logo Silme (Kural 3.3):**
   > `No Unwanted Text/Tags: DO NOT include any garment tags, size labels, watermarks, or extraneous text. The output must contain only the pure graphic artwork.`
 
+* **C4. Kıvrım / Katlanma Üzerindeki El Çizimi veya Fırça Dokulu Metin (Hibrit: Stil Sadakati + Sıfırdan Geometri):**
+  *(Metin el çizimi/fırça dokuluysa AMA fotoğraf üzerinde derin kumaş kıvrımı, yatay sıkışma veya dalgalı çerçeve bozulması varsa — yalnızca C1 uygulamak kıvrım bozukluğunu kopyalar!)*
+  > `CRITICAL Hybrid Geometry Reset (Fold-Distorted Hand-Painted Text): COMPLETELY DISCARD the photo's 3D fabric-fold geometry—including horizontal foreshortening (narrowed/squished letters), wavy baselines, tilted letter axes, and warped bounding boxes. Keep ONLY the hand-painted brush/acrylic stylistic character from the reference, and reconstruct '[TAM METİN]' and its enclosing box from scratch on a razor-straight horizontal baseline, upright vertical letter axes, consistent letter widths/spacing, and a geometrically level rectangular frame with organic brush-textured edges.`
+
 ---
 
 ## 5. Vaka Örneği: Goyardine Chevron Monogram Görseli İçin Üretilen Prompt
@@ -167,3 +171,21 @@ Kullanıcı bu çalışma alanında:
 1. Görseli **Bölüm 2'deki 7 maddelik kontrol listesine** göre en ince ayrıntısına kadar analiz et (hiçbir motifi, nokta/çizgi yapısını veya rengi atlama).
 2. Kısa bir **Görsel Analiz Özeti (Türkçe)** sun.
 3. Ardından **Bölüm 3 ve 4'teki Global + Değişken Şablona** sadık kalarak doğrudan **Nano Banana Pro**'ya yapıştırılmaya hazır **İngilizce** promptu kod bloğu içinde ver.
+
+---
+
+## 7. Hata ve Çözüm Tablosu (9 Satırlık Tam Tablo)
+
+| Karşılaşılan Sorun | Uygulanacak Çözüm / Prompt Revizyonu |
+|---|---|
+| Kumaş/giysi çıktıda kalıyor | Yasak listesini güçlendir, "standalone graphic" ekle. 2-3 denemede olmazsa dur: desen kumaşın parçası olabilir (ağartma, asit yıkama). |
+| Desen giysi siluetine sıkışıyor | "Full-frame rectangular, extend edge to edge, DO NOT confine to the shape of the garment" ekle. |
+| Yazı eğri/bozuk kalıyor | Kusurlu yazıyı referans olmaktan çıkar: "COMPLETELY DISCARD the source text shape"; yeni yazıyı düz taban çizgisiyle sıfırdan tarif et. |
+| Kumaş katı yazıyı yatayda sıkıştırıyor / kutu dalgalı kalıyor | Fotoğraftan piksel/kontur kopyalama (trace) ve tek eksenli (1D) kaydırma yasaktır; Modül C4 ile yalnızca fırça/stil dili alınıp kutu ve harfler düz ortografik geometride sıfırdan kurulur. |
+| Bulanık yazı "anlamlı" yazıya dönüştü | "Treat it as a shape to be drawn, not as text to be read. DO NOT replace it with new text" ekle. |
+| Renkler soluk/ışıktan bozuk | Paleti hex veya net renk adıyla ver: "clean solid idealized colors". |
+| Model birden çok parça/katman üretti | Yasaklara "ONE image only, no layers, no parts, no variants" ekle; görevi tek cümleye indir. |
+| Model detay uydurdu | Sadakat bölümüne "do not add any element not in the original" ekle ve eksik kısmın stilini somut tarif et. |
+| Model komutları yarım uyguluyor | Promptu protokol biçimine çevir: [PRESERVATION], [REPLACEMENT], [FIDELITY]; her madde tek komut olsun. |
+| Görev çok soyut ("yeni desen yarat") | "Sadece gördüğün deseni temizle" seviyesine sadeleştir. |
+

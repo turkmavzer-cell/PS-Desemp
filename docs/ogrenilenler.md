@@ -47,6 +47,10 @@ Kenardaki karışık piksel yanlışlıkla bir üçüncü renge (ör. Mavi 2) at
 - Koyu rengin (lacivert/siyah) altına beyaz konmaz. [rapor]
 - Choke ince detayları yok eder; yok olacak ince parçalar choke'lanmadan korunmalı. [rapor + deney]
 
+### 2.6 Kıvrımlı giysi üzerindeki yazı/kutuyu fotoğraftan çıkarıp 1D düzeltmek
+- Derin 3D kumaş kıvrımı (pile/katlanma) altındaki el çizimi yazı veya çerçeveyi fotoğraftan piksel/maske olarak çıkarıp (trace) yalnızca 1D dikey kaydırmayla düzeltmeye çalışmak **yatay sıkışmayı (foreshortening), harf eğimini ve kutu dalgalanmasını gidermez**. [deney]
+- Doğrusu (`docs/bozuk-gorselden-desen-uretim-promptu.md` Modül C4): Fotoğraftan yalnızca fırça/stil dili alınır; kutu ve her harf düz dikdörtgen çerçeve, düz yatay taban çizgisi, dik eksen ve tutarlı harf genişlikleriyle sıfırdan kurulur. [deney]
+
 ## 3. Doğru çıkan yöntem (v3, `tools/tramsiz.py`)
 
 1. Baskı ölçüsünde **508 PPI** (kullanıcı talimatı; eskiden 600 → 9094 px @38,5 cm; 508'de 7701 px). [atölye dosyaları 508]
