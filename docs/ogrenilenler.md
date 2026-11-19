@@ -224,3 +224,30 @@ Karar ölçütleri: `docs/arastirma/gorsel-analiz-karar-rehberi.md`. Kontrol ara
   - Katman ayırma renk kümeleme veya yapboz parçalama DEĞİLDİR. İllüstratörün çizdiği gibi **yapısal/fiziksel nesne izolasyonudur**.
   - Z-Index hiyerarşisi: Zemin -> Göğüs Zırhı ve Boyunluk -> Karın Zırhı Plakaları -> Kemer -> Kemer Tokası -> Omuzluklar -> İskelet Kafaları -> Göz Işıkları.
   - Ayrıntılı kural ve SOP belgesi: `docs/katman-ayirma-rehberi.md`.
+
+
+## Onaylı üretim dosyaları (699–702) analizi ve emprime standardı yükseltmesi (2026-11-19)
+- 4 profesyonel üretim PSD'si (`699.psd`, `700.psd`, `701.psd`, `702.psd`; ~1,28 GB) tam çözünürlüklü ham RLE, DisplayInfo, 2D FFT, `distanceTransform` choke, 24×24 ton transferi ve 32×32 nokta-faz analiziyle incelendi. Ayrıntılı ölçümler: `docs/onayli-dosyalar-699-702-analizi.md`.
+- **Çözülen kritik belirsizlikler ve yeni kurallar:**
+  1. **Tek tram standardı (5/5 dosya — 651, 654, 699, 700, 701):** `508 PPI`, `45 LPI`, `15°`, **yuvarlak (Round)** nokta, tüm kanallarda aynı açı ve aynı faz (`periyot = 11,47 px`).
+  2. **LAP + Dot-on-Dot Yığılmış Ton Paradigması:** Farklı renk aileleri karışmaz (`< %1`); aynı aile içinde koyu ton ve siyah açık tonun üstüne `%90–99,6` **dot-on-dot** biner (`701`: kahve ⊂ sarı `%99,4`, faz `%99,6`; `700`: yeşil ↔ siyah `%94,4`). **LAP** = tramsız `%100` katı dolgu (bölge alt-tabanı `2 krem`/`açık kırmızı` veya katı yazı `6 koyu kahve lap`); sıcak LAP soğuk/zıt ailenin altına konmaz (`700`: mavi çiçeklerde krem yok).
+  3. **Solidity & Kumaş Kanalı Standardı:** Kumaş kanalı (tam tuval dolu) = `%100`, `fon` = `%100`, tüm üst renkler ve üst `beyaz` = **`%16` Solidity**. Kanal paneli 2 katlı: üstte kumaş + 8-bit sürekli ton çalışma seti; altta 2. kumaş ayırıcısı + numaralı 1-bit baskı seti.
+  4. **Choke Standardı:** 508 PPI'da **`2 px`** (`0,10 mm`, genel/ince; 699/700/701 ölçümü `1,91 px`) – **`3 px`** (`0,15 mm`, geniş lap; `2,32–2,87 px`). Eski `4–21 px` değerleri aşırı agresifti.
+  5. **Üst Beyaz & Siyah Altı Fon:** Koyu kumaşta saf beyaz alanlara `fon` (`2 px` choke, `100%`) üstüne ayrı `beyaz` (`0 px`, `16%`) basılır (`699`). Tramlı siyah gölge/kontur altı **fondan oyulmaz** (`701`: `%95,75` fonlu); yalnızca geniş düz koyu LAP bloklar kumaşa göre opsiyonel oyulur (`700`: çift fon `1 fon` + `1 fon copy`).
+  6. **Dot Gain Kompanzasyonu:** Sürekli ton → tram dönüşümü 1:1 doğrusal (`±0,1%`); kompanzasyon sürekli ton kanalının üst yoğunluğu tavanlanarak yapılır (renkler `%75–85`, siyah `%85–90`).
+  7. **Üretim Zarfı:** Ön + arka tek tuvalde, her baskı altında `+` kayıt krosu ve 4 alanlı film bilgi etiketi (`beden/yüz | kanal adı | Xr iş_no ad | tarih`) saf 1-bit (anti-aliasing kapalı) basılır.
+
+## Usta değerlendirmesi — Londra çalışması ve atölye teknik kuralları (2026-11-19, [usta])
+Londra emprime ayrımını inceleyen ustanın doğrudan üretim deneyimine dayalı 10 kuralı:
+1. **Orijinal görsel katmanı silinmez:** PSD'deki `Layers` panelinde orijinal görsel her zaman korunur (değişiklik ve geri dönüş referansı).
+2. **Dolu siyah kumaş/ayırıcı kanalı (onaylı):** Koyu zemini önizlemek ve kanalları gruplamak (ayırıcı) için dolu LAP siyah kanal kullanımı ve sıralaması doğrudur.
+3. **Beyaz LAP fon zorunluluğu:** Fon rengi neredeyse her zaman beyazdır (30 desende maks. 2 istisna). Fonun `%100` LAP olması üst renklerin zayıf kalmaması ve beyaz boyanın tramlı kalıpta koyulaşıp tıkanmaması için şarttır.
+4. **Aile içi "Açık LAP + Üst %50–60 Koyu Tram" dengesi:** Tek başına tram alttan beyaz fon sızdırıp baskıyı zayıf bırakır. Canlı ve dolu baskı için her renk ailesinde altta açık ton `%100` LAP (veya LAP'a çok yakın yoğunluk) basılır, üstüne koyu ton tram olarak bindirilir. Altta LAP varken üst tram yoğunluğu ortalama **`%50–60`'ı geçmemelidir**; üst tram `%80` gibi yoğun olursa aşırı koyulaşır, alt ton gereğinden açık üst tram yoğun olursa iki ton birbirinden kopar.
+5. **Siyah tram için CMYK `K` kanalı yeterlidir:** En son basılan siyah tramda CMYK dönüşümündeki Siyah (`K`) kanalı doğrudan kullanılabilir.
+6. **Önce tam profesyonel ayrım, renk azaltma kullanıcıda:** Baştan 6 kafaya sıkmak profesyonel baskıda eksik sonuç verir. Önce her ana renk ailesi için **2 ton** (geniş/detaylı yüzeylerde **3 tona kadar**) + tek `fon` + tek `siyah` üretilmeli (ör. Londra: `1 fon + 2 krem/altın + 2 mavi + 2 kırmızı + 1 siyah = 8 kafa`), renk düşürme işlemi kullanıcıya bırakılmalıdır.
+7. **İki renkli degradede "%85 alt bindirme" (underlap) kuralı:** Örneğin Kırmızı ↔ Sarı degradede aynı tram açısıyla renkler yalnız göründüğü kadar alınırsa orta geçişte beyaz fon parlayıp geçişi soldurur. Açık/taban renk (Sarı), komşu koyu rengin (Kırmızı) **en az `%85` dolu olduğu alana kadar altına bindirilerek** başlatılır; böylece beyaz fon kapanır ve geçiş dolu çıkar.
+8. **Kalıp incelmesi (%5) vs baskı yayılması → `%5–10` açık ton kompanzasyonu:** Film → kalıp aşamasında (emülsiyon, ışık, yıkama) tram noktaları `~%5` incelir; baskıda boya kumaşa geçerken genişleyip yayılır. Bunu dengelemek için çalışma orijinalden **`~%5` daha açık** tonlarda hazırlanır ve gerekirse layer'da hafif parlaklaştırılıp siyah yoğunluğu azaltılır (toplam `%5–10` etki, abartılmamalı).
+9. **3 temel emprime boya cinsi (Beyaz, Pat, Şeffaf):**
+   - **Beyazlı boya** (beyaz + kök boya + çatlama önleyici az şeffaf): Koyu zeminli, canlı ve fonlu baskılar içindir; parlaklık/doyuruculuk mükemmeldir ama kıvamı koyudur, tıkanmaya meyillidir ve tuşe serttir.
+   - **Pat boya** (pat + kök boya): Açık zeminler ve CMYK baskılar içindir; suluboya gibidir, kalıpta uzun süre tıkanmaz, tuşe yumuşacıktır, yüksek adet basılır ama kumaş boyayı su gibi çeker ve **koyu kumaşta rengi hiç göstermez (kaybolur)**.
+10. **Tram frekansı (LPI) ve açı kuralları:** Spot renk ayrımında **`45 LPI`** tercih edilir; CMYK değilse açı **kişisel/atölye tercihidir** (`15°`, `45°`, bu usta **`72°`** kullanıyor). CMYK'nın baskı dilindeki adı **"fotoğraf baskı"**dır ve **`55 LPI`** daha iyi sonuç verir.
