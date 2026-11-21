@@ -1,0 +1,98 @@
+[
+  {
+    "id": "p01",
+    "label_tr": "Zift Siyah, Kireç Beyazı & Uyarı Sarısı",
+    "colors_hex": ["#0E0F10", "#F5F5F2", "#F2C918", "#7A8288"],
+    "prompt": "Deep asphalt black, stark chalk white, industrial caution yellow, and neutral steel gray accents",
+    "tags": ["industrial", "hazard", "stencil", "monochrome"],
+    "weight": 1.0
+  },
+  {
+    "id": "p02",
+    "label_tr": "Obsidyen, Emniyet Turuncusu & Krem",
+    "colors_hex": ["#111214", "#FF5412", "#F2EFE9", "#4B5056"],
+    "prompt": "Matte obsidian ink black, high-visibility safety orange, raw off-white canvas cream, and industrial charcoal gray",
+    "tags": ["industrial", "streetwear", "tape", "modern"],
+    "weight": 1.0
+  },
+  {
+    "id": "p03",
+    "label_tr": "Sadece Siyah, Beyaz & Kül Grisi",
+    "colors_hex": ["#0A0A0A", "#FFFFFF", "#B8BEC4", "#454A4F"],
+    "prompt": "High-contrast stark monochrome black, pure crisp white, cool ash halftone gray, and slate shadow",
+    "tags": ["monochrome", "minimal", "swiss", "sculpture"],
+    "weight": 1.0
+  },
+  {
+    "id": "p04",
+    "label_tr": "Beton Gri, Asit Yeşil & Kömür",
+    "colors_hex": ["#181A1B", "#A7F432", "#C9CED1", "#52585E"],
+    "prompt": "Raw architectural concrete gray, sharp neon acid-lime accent, deep coal black, and cool aluminum silver",
+    "tags": ["modern", "industrial", "cyber", "streetwear"],
+    "weight": 1.0
+  },
+  {
+    "id": "p05",
+    "label_tr": "Blueprint Kobalt Mavi & Beyaz",
+    "colors_hex": ["#0D3B8E", "#FFFFFF", "#69A3FF", "#081C42"],
+    "prompt": "Engineering blueprint cobalt blue, razor-sharp technical drafting white, cyan grid lines, and deep midnight navy",
+    "tags": ["blueprint", "technical", "swiss", "geometric"],
+    "weight": 1.0
+  },
+  {
+    "id": "p06",
+    "label_tr": "Rönesans Mermer, Altın Sarı & Siyah",
+    "colors_hex": ["#101112", "#E5DFD3", "#D8A938", "#6B645C"],
+    "prompt": "Gallery obsidian black, classical marble alabaster cream, warm industrial brass yellow, and stone taupe",
+    "tags": ["sculpture", "renaissance", "contrast", "gallery"],
+    "weight": 1.0
+  },
+  {
+    "id": "p07",
+    "label_tr": "Kargo Kırmızı, Ham Kraft & Mürekkep",
+    "colors_hex": ["#D12421", "#D8C3A5", "#141414", "#FFFFFF"],
+    "prompt": "Shipping-stamp signal red, raw unbleached kraft tan, dense carbon black ink, and crisp label white",
+    "tags": ["cargo", "stencil", "industrial", "streetwear"],
+    "weight": 1.0
+  },
+  {
+    "id": "p08",
+    "label_tr": "Buz Mavisi, Grafit & Limon",
+    "colors_hex": ["#93C6E7", "#1F2429", "#F5F7F8", "#E6E83E"],
+    "prompt": "Cool glacial cyan blue, dark graphite slate, stark frost white, and sharp volt yellow callout marks",
+    "tags": ["modern", "technical", "footwear", "streetwear"],
+    "weight": 1.0
+  },
+  {
+    "id": "p09",
+    "label_tr": "Şeffaf Selofan, Turuncu & Koyu Gri",
+    "colors_hex": ["#22252A", "#FF6B2B", "#E6E9ED", "#8D96A0"],
+    "prompt": "Matte slate charcoal, bright zip-tie coral orange, cool frosted gray, and crisp optical white",
+    "tags": ["tape", "cargo", "modern", "industrial"],
+    "weight": 1.0
+  },
+  {
+    "id": "p10",
+    "label_tr": "Krom Gümüş, Siyah & Elektrik Mavi",
+    "colors_hex": ["#0C0D10", "#CFD6DE", "#1E6BFF", "#FFFFFF"],
+    "prompt": "Jet studio black, brushed chrome metallic silver, electric blueprint blue, and stark white",
+    "tags": ["chrome", "modern", "geometric", "streetwear"],
+    "weight": 1.0
+  },
+  {
+    "id": "p11",
+    "label_tr": "Kuru Toprak, Kiremit & Siyah",
+    "colors_hex": ["#141312", "#C95A3A", "#EDE6DA", "#73695D"],
+    "prompt": "Raw carbon black, matte rust terracotta, warm gallery chalk, and weathered concrete stone",
+    "tags": ["sculpture", "brutalist", "stencil", "gallery"],
+    "weight": 1.0
+  },
+  {
+    "id": "p12",
+    "label_tr": "Mor Sprey, Siyah & Beyaz",
+    "colors_hex": ["#101014", "#7C3AED", "#F4F4F6", "#9CA3AF"],
+    "prompt": "Stark spray-paint stencil black, deep ultraviolet violet accent, crisp chalk white, and concrete mist gray",
+    "tags": ["spray", "streetwear", "art", "monochrome"],
+    "weight": 1.0
+  }
+]

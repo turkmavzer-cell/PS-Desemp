@@ -1,0 +1,8 @@
+PySide6>=6.7.0
+pywin32>=306
+numpy>=1.26.0
+opencv-python>=4.9.0
+Pillow>=10.2.0
+requests>=2.31.0
+psd-tools>=1.9.0
+imageio-ffmpeg>=0.4.9

@@ -159,9 +159,93 @@ def make_pal(seed, pal_a, band=(10, 28)):
     blk = nd[nd[:,0] <= np.percentile(nd[:,0], 8)].mean(0) if len(nd) > 500 else c[0]*0.8
     blk[0] = min(blk[0], c[0][0]-4)
     return np.vstack([blk[None], c])
-here = os.path.dirname(os.path.abspath(__file__)); so = os.path.join(here,'fs_dither.so')
-if not os.path.exists(so): os.system(f'gcc -O2 -shared -fPIC -o {so} {os.path.join(here,"fs_dither.c")}')
-GAM = int(os.environ.get('GAM', 1)); lib = ctypes.CDLL(so)
+here = os.path.dirname(os.path.abspath(__file__))
+lib_name = 'fs_dither.dll' if os.name == 'nt' else 'fs_dither.so'
+lib_path = os.path.join(here, lib_name)
+c_src = os.path.join(here, 'fs_dither.c')
+lib = None
+if not os.path.exists(lib_path):
+    try:
+        cmd = f'gcc -O2 -shared -fPIC -o "{lib_path}" "{c_src}"' if os.name != 'nt' else f'gcc -O2 -shared -o "{lib_path}" "{c_src}"'
+        os.system(cmd)
+    except Exception:
+        pass
+if os.path.exists(lib_path):
+    try:
+        lib = ctypes.CDLL(lib_path)
+    except Exception:
+        lib = None
+
+if lib is None:
+    import math
+    class FallbackLib:
+        def fs_dither(self, img_in, h, w, pal_in, m, out_in, gam=1):
+            if isinstance(img_in, (ctypes.c_void_p, int)):
+                img_arr = np.ctypeslib.as_array(ctypes.cast(img_in, ctypes.POINTER(ctypes.c_float)), shape=(h, w, 3))
+            elif hasattr(img_in, 'contents'):
+                img_arr = np.ctypeslib.as_array(img_in, shape=(h, w, 3))
+            else:
+                img_arr = np.asarray(img_in).reshape((h, w, 3))
+
+            if isinstance(pal_in, (ctypes.c_void_p, int)):
+                pal_arr = np.ctypeslib.as_array(ctypes.cast(pal_in, ctypes.POINTER(ctypes.c_float)), shape=(m, 3))
+            elif hasattr(pal_in, 'contents'):
+                pal_arr = np.ctypeslib.as_array(pal_in, shape=(m, 3))
+            else:
+                pal_arr = np.asarray(pal_in).reshape((m, 3))
+
+            if isinstance(out_in, (ctypes.c_void_p, int)):
+                out_arr = np.ctypeslib.as_array(ctypes.cast(out_in, ctypes.POINTER(ctypes.c_uint8)), shape=(h, w))
+            elif hasattr(out_in, 'contents'):
+                out_arr = np.ctypeslib.as_array(out_in, shape=(h, w))
+            else:
+                out_arr = np.asarray(out_in).reshape((h, w))
+
+            pal_list = pal_arr.tolist()
+            pal_calc = [[math.sqrt(max(c, 0.0)) for c in row] for row in pal_list] if gam else pal_list
+
+            for y in range(h):
+                ltr = (y % 2 == 0)
+                xs = range(w) if ltr else range(w - 1, -1, -1)
+                dx = 1 if ltr else -1
+                for x in xs:
+                    p0, p1, p2 = img_arr[y, x]
+                    if gam:
+                        s0, s1, s2 = math.sqrt(max(p0, 0.0)), math.sqrt(max(p1, 0.0)), math.sqrt(max(p2, 0.0))
+                    else:
+                        s0, s1, s2 = p0, p1, p2
+                    best = 0
+                    bd = 1e30
+                    for i in range(m):
+                        c0, c1, c2 = pal_calc[i]
+                        d0, d1, d2 = s0 - c0, s1 - c1, s2 - c2
+                        d = d0 * d0 + d1 * d1 + d2 * d2
+                        if d < bd:
+                            bd = d
+                            best = i
+                    out_arr[y, x] = best
+                    bp0, bp1, bp2 = pal_list[best]
+                    e0, e1, e2 = p0 - bp0, p1 - bp1, p2 - bp2
+                    if 0 <= x + dx < w:
+                        img_arr[y, x + dx, 0] += e0 * 0.4375
+                        img_arr[y, x + dx, 1] += e1 * 0.4375
+                        img_arr[y, x + dx, 2] += e2 * 0.4375
+                    if y + 1 < h:
+                        if 0 <= x - dx < w:
+                            img_arr[y + 1, x - dx, 0] += e0 * 0.1875
+                            img_arr[y + 1, x - dx, 1] += e1 * 0.1875
+                            img_arr[y + 1, x - dx, 2] += e2 * 0.1875
+                        img_arr[y + 1, x, 0] += e0 * 0.3125
+                        img_arr[y + 1, x, 1] += e1 * 0.3125
+                        img_arr[y + 1, x, 2] += e2 * 0.3125
+                        if 0 <= x + dx < w:
+                            img_arr[y + 1, x + dx, 0] += e0 * 0.0625
+                            img_arr[y + 1, x + dx, 1] += e1 * 0.0625
+                            img_arr[y + 1, x + dx, 2] += e2 * 0.0625
+
+    lib = FallbackLib()
+
+GAM = int(os.environ.get('GAM', 1))
 if DITH_N > 0:
     _nz = cv2.GaussianBlur(np.random.RandomState(1).randn(dh, dw).astype(np.float32), (0,0), 0.8); _nz /= _nz.std()
     comp_d = np.where(au > 0.5, np.clip(np.sqrt(np.clip(comp,0,1)) + DITH_N*_nz[...,None], 0, 1)**2, comp)

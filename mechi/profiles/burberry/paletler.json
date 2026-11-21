@@ -1,0 +1,98 @@
+[
+  {
+    "id": "p01",
+    "label_tr": "Deve Tüyü, Siyah, Krem & Kırmızı",
+    "colors_hex": ["#C8A97E", "#141414", "#F7F3EA", "#B8292F"],
+    "prompt": "Classic warm archive camel beige, crisp jet black, ivory parchment white, and heritage crimson scarlet stripe accents",
+    "tags": ["tartan", "heritage", "classical", "crest"],
+    "weight": 1.0
+  },
+  {
+    "id": "p02",
+    "label_tr": "İngiliz Yarış Yeşili, Camel & Krem",
+    "colors_hex": ["#193B2C", "#C59E6B", "#F6F1E6", "#161817"],
+    "prompt": "Deep British racing green, warm gabardine camel tan, soft bone cream, and crisp ink black outlines",
+    "tags": ["british", "equestrian", "countryside", "heritage"],
+    "weight": 1.0
+  },
+  {
+    "id": "p03",
+    "label_tr": "Gece Laciverti, Bordo & Altın",
+    "colors_hex": ["#15213B", "#7E202E", "#EFE8D8", "#C89D48"],
+    "prompt": "Midnight London navy, deep royal claret burgundy, warm archival cream, and burnished antique brass gold",
+    "tags": ["crest", "tailoring", "royal", "classical"],
+    "weight": 1.0
+  },
+  {
+    "id": "p04",
+    "label_tr": "Kömür Gri, Buz Mavi & Deve Tüyü",
+    "colors_hex": ["#2C3135", "#9EC1D9", "#C9AC82", "#F4F5F6"],
+    "prompt": "London slate charcoal, cool rain-sky blue, archive camel beige, and crisp chalk white",
+    "tags": ["london", "tartan", "modern", "tailoring"],
+    "weight": 1.0
+  },
+  {
+    "id": "p05",
+    "label_tr": "Bal Kahve, Kestane & Fildişi",
+    "colors_hex": ["#D2A360", "#5E3224", "#FAF5EB", "#1B1614"],
+    "prompt": "Warm honey gabardine ochre, rich chestnut leather brown, ivory linen cream, and espresso ink black",
+    "tags": ["trench", "luggage", "heritage", "vintage"],
+    "weight": 1.0
+  },
+  {
+    "id": "p06",
+    "label_tr": "İskoç Kırmızı, Orman Yeşil & Sarı",
+    "colors_hex": ["#B3262A", "#1E4631", "#E4B83E", "#121314"],
+    "prompt": "Highland tartan crimson, deep pine forest green, woven gold mustard, and solid black intersecting bars",
+    "tags": ["tartan", "highland", "crest", "vintage"],
+    "weight": 1.0
+  },
+  {
+    "id": "p07",
+    "label_tr": "Pastel Gül, Taş Bej & Mürekkep",
+    "colors_hex": ["#D48E96", "#DDD1BE", "#22262B", "#FBF9F5"],
+    "prompt": "English garden dusty rose, muted stone putty, deep Oxford slate ink, and soft alabaster cream",
+    "tags": ["floral", "rose", "british", "classical"],
+    "weight": 1.0
+  },
+  {
+    "id": "p08",
+    "label_tr": "Şövalye Gümüş, Kobalt & Beyaz",
+    "colors_hex": ["#A8B2BC", "#1D4488", "#FFFFFF", "#12151B"],
+    "prompt": "Heraldic armor silver gray, crisp royal knight cobalt blue, pure white, and obsidian outline black",
+    "tags": ["knight", "modern", "crest", "monogram"],
+    "weight": 1.0
+  },
+  {
+    "id": "p09",
+    "label_tr": "Tüvit Zeytin, Hardal & Siyah",
+    "colors_hex": ["#5D6644", "#C89328", "#EFEADF", "#1D1E19"],
+    "prompt": "Highland olive tweed, warm English mustard ochre, unbleached wool cream, and deep peat black",
+    "tags": ["countryside", "trench", "equestrian", "vintage"],
+    "weight": 1.0
+  },
+  {
+    "id": "p10",
+    "label_tr": "Altın Varak, Safir & Krem",
+    "colors_hex": ["#D0A142", "#1A3365", "#FAF6EE", "#14161C"],
+    "prompt": "Engraved royal brass gold, deep Savile Row sapphire blue, warm cream parchment, and sharp ink black",
+    "tags": ["royal", "crest", "tailoring", "classical"],
+    "weight": 1.0
+  },
+  {
+    "id": "p11",
+    "label_tr": "Siyah-Beyaz Gravür & Kırmızı Mühür",
+    "colors_hex": ["#111214", "#F7F6F2", "#C4232A", "#8A8E94"],
+    "prompt": "Crisp monochrome black ink engraving, ivory white ground, subtle slate crosshatching, and single wax-seal crimson",
+    "tags": ["engraving", "vintage", "london", "minimal"],
+    "weight": 1.0
+  },
+  {
+    "id": "p12",
+    "label_tr": "Kum Beji, Lacivert & Bakır",
+    "colors_hex": ["#DFC9AA", "#1A2942", "#B5643B", "#141414"],
+    "prompt": "Soft trench sand beige, maritime British navy, burnished copper buckle tan, and clean black keylines",
+    "tags": ["trench", "tailoring", "heritage", "modern"],
+    "weight": 1.0
+  }
+]

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """IKI ASAMALI YONTEM - 2. ASAMA: kullanicinin duzenleyip onayladigi onizleme PNG'sinden filmleri cikarir.
-Aciklama: docs/is-akisi-tek-ve-iki-asama.md
+Aciklama: docs/emprime-kanal-ayirma.md
 
 Kullanim:
   python3 tools/onizlemeden_ayir.py duzenlenmis.png cikti_klasoru acik|koyu [onizleme_palet.json] [tisort_rgb]

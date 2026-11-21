@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Az murekkepli baski gorselini BOLGE GRUBU x MUREKKEP KATMANI olarak PSD'ye ayirir.
 
-Kullanim: python3 tools/katman/bolge_murekkep_katman.py girdi.jpg bolgeler.npz cikti.psd [--ceza gunes:Siyah=8,ev:Kirmizi=8,ev:Acik_Kirmizi=8]
+Kullanim: python3 tools/katman/bolge_murekkep_katman.py girdi.jpg bolgeler.npz cikti.psd [--ceza bolge1:Siyah=8,bolge2:Kirmizi=8]
 
 bolgeler.npz: her anahtar bir bolge adi, deger = HxW bool maske. Maskeler ayrik olmali
 (ortusme 0, bosluk 0); yoksa betik durur. Anahtar sirasi = grup sirasi (ilk anahtar en altta).
-Ornek maske uretimi: tools/katman/ornekler/bolgeler_japon.py (yapi pikselinden, dikdortgenden degil).
+Maskeler bolgenin yapi piksellerinden uretilir, dikdortgenden degil (docs/katman-ayirma.md B).
 
-Yontem (docs/yontem-gunlugu.md 2026-10-20):
+Yontem (docs/katman-ayirma.md 2026-10-20):
  1) Her bolgede murekkep renkleri ayri kestirilir: Krem (parlak %20 medyani), Siyah (koyu %20 medyani),
     Kirmizi (en koyu %2 kirmizi medyani) + Acik Kirmizi (en doygun/parlak %10) - kirmizi piksel varsa.
  2) piksel = w_krem*Krem + w_kirmizi*Kirmizi + ... ; w>=0, toplam 1 (kisitli en kucuk kareler),

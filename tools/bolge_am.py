@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Bolge saflikli AM tram ayrimi. Plan: docs/plan-bolge-safligi.md
+"""Bolge saflikli AM tram ayrimi. Plan: docs/emprime-kanal-ayirma.md
 Kullanim: python3 tools/bolge_am.py girdi.png cikti_klasoru N_acik [N_koyu_renk]
   N_acik: acik tisort renk sayisi; N_koyu_renk: koyu tisortte fon HARIC renk sayisi (verilmezse koyu set uretilmez)
-Env: ASAMA=tek|onizleme (onizleme = iki asamali yontem 1. asama; bkz. docs/is-akisi-tek-ve-iki-asama.md)
+Env: ASAMA=tek|onizleme (onizleme = iki asamali yontem 1. asama; bkz. docs/emprime-kanal-ayirma.md)
      FIGUR=figur_maske.png (koyu tiste kagit beyazi ile figur beyazini ayirir; yoksa figur = kagit olmayan her yer)
-     LAP=1 (tramli renklerin altinda tam kaplayan duz taban 'lap'; LAP_TOL=0,25 LAP_ABS=0,0004; yalniz 1. asama onizleme/tek asama gorunumu, film ust uste basimi henuz yok)
-     PPI(508) LPI(45) ANG(15) DMIN(0.03) MINC(0.10) MINPX(4) CHOKE_PX(4) SHIRT(30,30,30 onizleme)
+     LAP=1 (tramli renklerin altinda tam kaplayan duz taban 'lap'; LAP_TOL=1.0 LAP_ABS=0.003; gercek yigilmis LAP+dot-on-dot icin tools/lap_overprint_am.py kullanin)
+     PPI(508) LPI(45) ANG(15) DMIN(0.03) MINC(0.10) MINPX(4) CHOKE_PX(2) SHIRT(30,30,30 onizleme)
 Ilke: her pikselin renk ailesi (ton) yumusatilmis kaynaktan bulunur; piksel yalniz kendi ailesinin murekkepleriyle
 karisir. En koyu murekkep baska ailede yalniz cizgi/kontur maskesinde kullanilir. Duz bolgeler sabit tonda tutulur.
 Murekkepler cakismaz (indeks), tek ekran; koyu tiste fon (beyaz altlik) ayni ekranda renklerin altinda.
@@ -22,7 +22,7 @@ N_ACIK = int(sys.argv[3]) if len(sys.argv) > 3 else 6
 N_KOYU = int(sys.argv[4]) if len(sys.argv) > 4 else 0
 E = os.environ.get
 PPI = int(E('PPI', 508)); LPI = float(E('LPI', 45)); ANG = float(E('ANG', 15))
-DMIN = float(E('DMIN', 0.03)); MINC = float(E('MINC', 0.10)); MINPX = int(E('MINPX', 4)); CHOKE = int(E('CHOKE_PX', 4))
+DMIN = float(E('DMIN', 0.03)); MINC = float(E('MINC', 0.10)); MINPX = int(E('MINPX', 4)); CHOKE = int(E('CHOKE_PX', 2))
 SHIRT = np.array([int(x) for x in E('SHIRT', '30,30,30').split(',')], np.uint8)
 FIGUR = E('FIGUR'); os.makedirs(out_dir, exist_ok=True)
 ASAMA = E('ASAMA', 'tek')   # 'tek': filmleri dogrudan uret; 'onizleme': iki asamali yontemin 1. asamasi, yalniz indeksli onizleme PNG (film yok)
@@ -239,8 +239,8 @@ def finalize(inks, i1, i2, c1, c2, region):
     """yumusak ton alaninda murekkep ciftini bolge capinda sabitle (cogunluk oyu), kaplamayi o cift icin yeniden coz.
     Boylece ten/gok gibi yumusak gecislerde cift degisiminden dogan yamali (leke) gorunum olusmaz."""
     lum = tolab(dlin(inks))[:, 0]; n = len(inks); D = 1.0-inks
-    a_ = np.minimum(i1, i2).astype(np.int16); b_ = np.maximum(i1, i2).astype(np.int16)
-    code = a_*16+b_; code[(c1+c2) < 1e-4] = 255
+    a_ = np.minimum(i1, i2).astype(np.int32); b_ = np.maximum(i1, i2).astype(np.int32)
+    code = a_*64+b_; code[(c1+c2) < 1e-4] = -1
     lapm0 = ((c1+c2) >= 0.999) & region if LAP else np.zeros(code.shape, bool)    # kagitsiz (lap) pikseller
     fe = np.zeros(fam.shape, np.uint8)                      # aile sinirlari: oylama disi
     fe[:, 1:] |= (fam[:, 1:] != fam[:, :-1]); fe[1:, :] |= (fam[1:, :] != fam[:-1, :])
@@ -257,8 +257,8 @@ def finalize(inks, i1, i2, c1, c2, region):
     I1 = np.zeros(code.shape, np.uint8); I2 = np.zeros(code.shape, np.uint8)
     C1 = np.zeros(code.shape, np.float32); C2 = np.zeros(code.shape, np.float32)
     for k in np.unique(code):
-        if k == 255: continue
-        a, b = int(k)//16, int(k) % 16
+        if k < 0: continue
+        a, b = int(k)//64, int(k) % 64
         m = (code == k) & region
         if not m.any(): continue
         P = 1.0-Lsm[m]
@@ -352,7 +352,7 @@ def save(mask, path):
     if ASAMA == 'onizleme': return                         # 1. asamada film yazilmaz
     Image.frombytes('1', (W, H), np.packbits(~mask, axis=1).tobytes()).save(path, dpi=(PPI, PPI), compress_level=6)
 
-meta = {'W': W, 'H': H, 'ppi': PPI, 'lpi': LPI, 'aci': ANG, 'sets': {}}
+meta = {'mod': 'indeks', 'W': W, 'H': H, 'ppi': PPI, 'lpi': LPI, 'aci': ANG, 'choke_px': CHOKE, 'kumas_rgb': SHIRT.tolist(), 'sets': {}}
 used = set()
 
 # ---------------- ACIK TISORT ----------------

@@ -226,3 +226,13 @@ Test görseli: Gemini üretimi mandala + "BE BRAVE" tipografi (`Gemini_Generated
 - **Deneme ve Sonuç:** Otomatik üretilen katmanlarda koordinat kutusu kesikleri, kavisli yüzeylerde düz bıçak kesimleri, kafatasında 35 iç delik ve kopuk piksel adaları oluştu.
 - **Referans Dosya:** Kullanıcı `C:\Users\dell\Downloads\örnek katman.psd` dosyasını paylaştı. Katmanların renk ayrımı değil, illüstrasyon/nesne hiyerarşisi (Zemin, Göğüs, Karın, Kemer, Toka, Omuzluk) olduğu doğrulandı.
 - **Alınan Karar:** Kusurlar tespit edilip `docs/katman-ayirma-rehberi.md` ve `docs/ogrenilenler.md` içerisine işlendi. Kullanıcının talimatıyla yeni model oturumuna temiz aktarım için tüm bulgular repoya işlendi.
+
+
+## 2026-10-24 — Katmanlara ayırma: 3 renkli çiçek deseni (çiçah.jfif, 2400x1792)
+- **İstek:** `İndirilenler\çiçah.jfif` dosyasını 3 saf renk katmanı (`Acik_Kahve_Zemin`, `Krem`, `Koyu_Kahve`) olarak PSD'ye ayırmak; hiçbir katmanda diğerinin rengi kalmaması ve İndirilenler'e kopyalanması.
+- **Analiz:** Görselde Açık Kahve zemin `[137, 102, 72]`, Krem `[253, 241, 227]` ve Koyu Kahve `[53, 31, 17]` aynı doğrusallık eksenine yakın (`cos ≈ -0.96`). Basit eşikleme/unmixing yapıldığında çiçek içindeki Krem-Koyu Kahve geçiş pikselleri (`L ≈ 104`) zemin sanılarak iki katman arasında boşluk bırakıyor veya nokta (stipple) çevresindeki JPEG halkaları Krem katmanına sızıyor.
+- **Yöntem (`tools/katman/uc_renk_katman.py`):**
+  1. Her katmana yalnızca kendi saf RGB değeri verildi (`Acik_Kahve_Zemin`: `[137,102,72]`, `Krem`: `[253,241,227]`, `Koyu_Kahve`: `[53,31,17]`), geçişler yalnızca alfa kanalında tutuldu.
+  2. Krem ve Koyu Kahve bölgeleri histerezis + çiçek mesafesiyle süzülerek nokta bulutu JPEG gürültüsünün Krem katmanına sızması tamamen sıfırlandı.
+  3. Çiçek içindeki 1 px'lik Krem–Koyu Kahve temas sınırları kapatılarak farklı zemin rengi denendiğinde dahi boşluk sızmaması sağlandı.
+- **Ölçüm ve Teslim:** Birleşik–orijinal fark kanal ortalaması `4.00`. Çıktılar: `C:\Users\dell\Downloads\çiçah.psd` ve `C:\Users\dell\Downloads\çiçah_katmanlar\`.

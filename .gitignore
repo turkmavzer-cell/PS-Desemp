@@ -13,3 +13,9 @@ __pycache__/
 
 # docs/ornekler içindeki küçük önizlemeler repoda kalır
 !docs/ornekler/*.png
+
+# MeChi Studio yerel veriler, gizli anahtarlar ve uretilen maskot medyasi
+mechi/.env
+mechi/data/
+mechi/assets/mascot/*.webp
+mechi/assets/mascot/*.gif

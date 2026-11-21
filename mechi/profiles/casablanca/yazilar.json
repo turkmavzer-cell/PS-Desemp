@@ -1,0 +1,146 @@
+[
+  {
+    "id": "casa_typ_01",
+    "label_tr": "Ters Üçgen Üst Kirişinde Kalın Geometrik Başlık + Alt Sivri Uçta Kulüp İmzası (#6/#7/#12)",
+    "tags": ["tennis", "riviera", "pyramid", "japan", "universal"],
+    "prompt": "Resting cleanly atop the flat horizontal upper lintel bar of the inverted triangle is a bold wide-tracked geometric sans-serif headline reading \"[YOUR BRAND TEXT]\" in deep forest green with a fine cream inline, balanced below the bottom triangle apex by a small italic resort signature."
+  },
+  {
+    "id": "casa_typ_02",
+    "label_tr": "Üst Kemer ve Alt Kaideye Bölünmüş İki Katmanlı Klasik Serif Başlık (#23/#29/#39)",
+    "tags": ["antiquity", "tennis", "riviera", "laurel", "arch", "universal"],
+    "prompt": "A balanced split-level architectural typography layout: the primary headline \"[YOUR BRAND TEXT]\" arches gracefully across the upper sky in high-contrast engraved Roman serif capitals, while a clean wide-spaced sub-caption is centered directly below the lower stone altar pedestal."
+  },
+  {
+    "id": "casa_typ_03",
+    "label_tr": "45° Elmas Pikap Köşelerinde Üst/Alt Bölünmüş Serif Başlık (#13/#16/#26)",
+    "tags": ["diamond", "scarf", "memphis", "house", "retro80s", "universal"],
+    "prompt": "Positioned symmetrically above the top diamond apex and below the bottom diamond apex of the 45-degree turntable frame is a crisp high-contrast editorial serif headline reading \"[YOUR BRAND TEXT]\" in warm gold and obsidian black with wide luxury letter-spacing."
+  },
+  {
+    "id": "casa_typ_04",
+    "label_tr": "Elmas Çerçeveyi Saran Uzun Psychedelic Art-Nouveau Kontur Harfler (#22)",
+    "tags": ["diamond", "scarf", "memphis", "airbrush", "retro80s", "universal"],
+    "prompt": "Flanking the left and right diagonal flanks of the central diamond medallion are tall, fluid 1970s psychedelic Art-Nouveau open-outline display letters spelling \"[YOUR BRAND TEXT]\", contoured to hug the geometric diamond edges like custom hand-drawn album lettering."
+  },
+  {
+    "id": "casa_typ_05",
+    "label_tr": "80'ler 3D Krom ve Altın Kabartmalı Alevli Kemer Başlık (#4/#25)",
+    "tags": ["memphis", "airbrush", "retro80s", "tennis", "grandprix", "universal"],
+    "prompt": "Arching boldly above the flaming centerpiece is a 1980s retro airbrushed 3D metallic headline reading \"[YOUR BRAND TEXT]\" with polished silver-chrome top facets, warm golden-orange horizon reflections, a deep cobalt-blue extruded drop shadow, and specular star glints."
+  },
+  {
+    "id": "casa_typ_06",
+    "label_tr": "Alt Kaide Altında Kırmızı İtalik El Yazısı + Kalın Yeşil Blok Başlık (#1/#30/#36)",
+    "tags": ["riviera", "arch", "citrus", "club", "zellige", "universal"],
+    "prompt": "Centered beneath the botanical base is a two-line Riviera club lockup: an upper flowing crimson brushstroke script flourish paired directly above a bold solid emerald-green uppercase serif headline reading \"[YOUR BRAND TEXT]\" with generous tracking."
+  },
+  {
+    "id": "casa_typ_07",
+    "label_tr": "Japon 80'ler Arcade 3D Krom Blok Başlık + Dikey Katakana Yan Sütunlar (#19)",
+    "tags": ["japan", "memphis", "airbrush", "retro80s", "grandprix", "universal"],
+    "prompt": "At the top center sits a chunky 1980s Japanese arcade 3D beveled metallic headline reading \"[YOUR BRAND TEXT]\" with glossy cyan-and-gold reflections, flanked along the left and right vertical margins by decorative pink-and-teal Japanese Katakana character columns."
+  },
+  {
+    "id": "casa_typ_08",
+    "label_tr": "Lotus Göleti Altında Dalgalı 3D Altın-Bronz Kabartma Kemer Yazı (#33)",
+    "tags": ["japan", "scarf", "diamond", "antiquity", "apresski", "universal"],
+    "prompt": "Curving beneath the lower lotus pond in a gentle wave ribbon is a gleaming three-dimensional embossed bronze-and-gold display headline reading \"[YOUR BRAND TEXT]\" with crisp black chiseled bevel shadows and warm sunset highlights."
+  },
+  {
+    "id": "casa_typ_09",
+    "label_tr": "1940'lar Sinema Afişi Üst Kutu İçinde Kalın Siyah Konturlu Kırmızı Başlık (#32)",
+    "tags": ["riviera", "citrus", "mexico", "la_funk", "lagos", "universal"],
+    "prompt": "Enclosed inside the rectangular upper poster marquee box is a bold vintage 1940s tropical cinema headline reading \"[YOUR BRAND TEXT]\" rendered in vibrant coral-red uppercase block letters with a thick ink-black 3D offset shadow and cream inner highlight."
+  },
+  {
+    "id": "casa_typ_10",
+    "label_tr": "Kırmızı Barok Damask Kafes Üzerinde Beyaz Gölgeli Siyah Kraliyet Serif Başlık (#17)",
+    "tags": ["scarf", "diamond", "zellige", "arch", "antiquity", "universal"],
+    "prompt": "Superimposed cleanly across the lower center of the baroque damask lattice is a commanding neoclassical Didone serif headline reading \"[YOUR BRAND TEXT]\" in deep ink-black letters crisp-haloed by a sharp pure-white double-offset outline."
+  },
+  {
+    "id": "casa_typ_11",
+    "label_tr": "Kemer Altında Gece Vahası Altın Kumtaşı Serif Başlık (#40)",
+    "tags": ["mexico", "pyramid", "mystic", "arch", "zellige", "universal"],
+    "prompt": "Centered cleanly below the nocturnal archway base threshold is a refined high-contrast uppercase Roman serif headline reading \"[YOUR BRAND TEXT]\" rendered in warm desert-sand gold with razor-sharp serifs against the dark ground."
+  },
+  {
+    "id": "casa_typ_12",
+    "label_tr": "Dairesel Miras Madalyonu Alt Kurdelesinde Altın Kulüp Başlığı (#21)",
+    "tags": ["zellige", "arch", "riviera", "citrus", "club", "universal"],
+    "prompt": "Inscribed along the unfurled satin ribbon scroll beneath the circular heritage medallion is an elegant engraved uppercase serif headline reading \"[YOUR BRAND TEXT]\" in deep navy and burnished gold with small diamond dividers."
+  },
+  {
+    "id": "casa_typ_13",
+    "label_tr": "Eğik Mermer Sütun Altında İnce Zarif Mavi-Altın Klasik Serif (#37)",
+    "tags": ["antiquity", "memphis", "airbrush", "retro80s", "arch", "universal"],
+    "prompt": "Floating calmly beneath the diagonal marble column and cobalt airbrush cloud is a delicate wide-tracked neoclassical serif inscription reading \"[YOUR BRAND TEXT]\" in deep Mediterranean cobalt blue accented by a tiny golden laurel sprig."
+  },
+  {
+    "id": "casa_typ_14",
+    "label_tr": "Portakal Piramidi Altında Yeşil-Turuncu Çift Gölgeli Kulüp Tipografisi (#27)",
+    "tags": ["citrus", "riviera", "tennis", "club", "scarf", "universal"],
+    "prompt": "Positioned directly below the stacked citrus pyramid is a crisp Riviera resort headline reading \"[YOUR BRAND TEXT]\" in bold forest-green serif capitals with a warm tangerine-orange drop shadow and balanced French sub-lettering."
+  },
+  {
+    "id": "casa_typ_15",
+    "label_tr": "Kırık Amfora ve Menderes Friz Altında Antik Taş Kazıma Serif (#18)",
+    "tags": ["antiquity", "laurel", "tennis", "scarf", "zellige", "universal"],
+    "prompt": "Set cleanly below the horizontal Greek-key meander border is a chiseled epigraphic Roman Trajan serif headline reading \"[YOUR BRAND TEXT]\" in warm terracotta red and deep Aegean navy, evoking hand-carved classical marble temple frieze inscriptions with wide editorial letter-spacing."
+  },
+  {
+    "id": "casa_typ_16",
+    "label_tr": "Süpersonik Ters Üçgen Altında Aerodinamik Krom-Altın Hız Başlığı (#14)",
+    "tags": ["grandprix", "racing", "motorsport", "diplomatique", "memphis", "universal"],
+    "prompt": "Anchored symmetrically beneath the sharp inverted aviation triangle apex is a sleek late-1970s supersonic airline display headline reading \"[YOUR BRAND TEXT]\" in italicized brushed gold and chrome capitals with horizontal aerodynamic speed-line cutouts and a crisp navy shadow."
+  },
+  {
+    "id": "casa_typ_17",
+    "label_tr": "İkiz Horus Şahinli Üçgen Üstünde Hiyeroglif Frizli Altın Serif (#15)",
+    "tags": ["pyramid", "antiquity", "mystic", "apresski", "alpine", "universal"],
+    "prompt": "Spanning across the horizontal upper lintel beam between the twin perched golden Horus falcons is a regal Greco-Egyptian engraved serif headline reading \"[YOUR BRAND TEXT]\" in burnished 24k gold capitals with fine turquoise inline detailing and obsidian drop shadows."
+  },
+  {
+    "id": "casa_typ_18",
+    "label_tr": "Çini Friz Tabanı Altında Akdeniz Saray Kulübü Serif ve İtalik Alt Yazı (#20)",
+    "tags": ["zellige", "riviera", "citrus", "club", "arch", "universal"],
+    "prompt": "Positioned beneath the colorful Moroccan Zellige tile frieze base sits a refined two-tier Mediterranean resort lockup reading \"[YOUR BRAND TEXT]\" in tall charcoal-navy high-contrast Bodoni serif capitals paired with a warm terracotta cursive club motto underneath."
+  },
+  {
+    "id": "casa_typ_19",
+    "label_tr": "Gökkuşağı Kemer Altında Pastel Gölgeli Sürreal Kulüp Başlığı (#3)",
+    "tags": ["tennis", "riviera", "arch", "memphis", "airbrush", "universal"],
+    "prompt": "Centered cleanly below the red-clay court threshold of the rainbow sunburst archway is a crisp bold uppercase serif headline reading \"[YOUR BRAND TEXT]\" in deep forest emerald green accented by a soft coral-pink 3D offset relief shadow."
+  },
+  {
+    "id": "casa_typ_20",
+    "label_tr": "Ütopik Takımada Üstünde Gökyüzü Kemeri 3D Pastel Kabartma Yazı (#38)",
+    "tags": ["mystic", "antiquity", "pyramid", "apresski", "memphis", "universal"],
+    "prompt": "Curving high across the pastel clouds above the floating waterfall islands is a sculpted three-dimensional cream-and-gold serif headline reading \"[YOUR BRAND TEXT]\" with soft sky-blue dimensional bevels, warm specular highlights, and miniature fluttering butterfly accents."
+  },
+  {
+    "id": "casa_typ_21",
+    "label_tr": "Monaco Grand Prix Paddock Arması ve Çift Şeritli Yarış Serif Başlığı",
+    "tags": ["grandprix", "racing", "motorsport", "riviera", "club", "universal"],
+    "prompt": "Framed by twin crimson-and-gold racing pinstripes below the harbor chicane scene is a bold vintage Monaco Grand Prix poster headline reading \"[YOUR BRAND TEXT]\" in heavy condensed Roman serif capitals flanked by miniature checkered-flag corner emblems."
+  },
+  {
+    "id": "casa_typ_22",
+    "label_tr": "Alp Après-Ski Şale Kemerinde Altın Kabartma ve Kristal Gölge Başlık",
+    "tags": ["apresski", "alpine", "winter", "riviera", "club", "universal"],
+    "prompt": "Set across the lower alpine stone portal plinth is a luxury Swiss-chalet engraved serif headline reading \"[YOUR BRAND TEXT]\" in warm burnished gold capitals with an icy turquoise inner bevel, deep navy outline, and crimson diamond dividers."
+  },
+  {
+    "id": "casa_typ_23",
+    "label_tr": "Minimalist Sol Göğüs Kulüp Arması + Sırt Tam Boy Kemer Başlık Uyumu (#30/#36)",
+    "tags": ["arch", "tennis", "riviera", "club", "laurel", "universal"],
+    "prompt": "A classic Parisian tennis club typographic seal centered below the leaf-wreathed sanctuary arch reading \"[YOUR BRAND TEXT]\" in bold forest-green uppercase Roman serifs flanked on both sides by miniature crossed golden wooden rackets and laurel sprigs."
+  },
+  {
+    "id": "casa_typ_24",
+    "label_tr": "İpek Eşarp Köşe Kartuşu ve Merkez Altı Altın Kordon Yazı (#18/#31)",
+    "tags": ["scarf", "diamond", "zellige", "antiquity", "japan", "universal"],
+    "prompt": "Integrated seamlessly into the lower silk-scarf border cartouche is an ornate embossed gold-foil serif inscription reading \"[YOUR BRAND TEXT]\" framed by braided silk-rope scrollwork, symmetrical acanthus flourishes, and small faceted ruby diamond studs."
+  }
+]

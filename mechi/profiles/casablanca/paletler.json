@@ -1,0 +1,86 @@
+[
+  {
+    "id": "casa_pal_01",
+    "label_tr": "Pelikan, Piramit & UFO Ters Üçgen Paleti (#6/#12)",
+    "tags": ["tennis", "riviera", "pyramid", "antiquity", "mystic", "universal"],
+    "colors_hex": ["#C84B31", "#1B7A6E", "#E5B84B", "#14284B", "#2D6A4F", "#F7F3E8"],
+    "prompt": "Rich multi-plane resort spot-color palette combining red-clay court terracotta, turquoise lagoon teal, golden pyramid ochre, deep nocturnal UFO sky navy, lush palm emerald, and warm ivory cream."
+  },
+  {
+    "id": "casa_pal_02",
+    "label_tr": "Greco-Mısır Sunak, Pembe Flamingo ve Mavi Lotus Paleti (#23/#29)",
+    "tags": ["tennis", "riviera", "antiquity", "pyramid", "laurel", "universal"],
+    "colors_hex": ["#F28DAE", "#D45D3A", "#2A8C82", "#E2B049", "#2E5A36", "#1A1A1A"],
+    "prompt": "Sunlit Greco-Egyptian shrine palette featuring vibrant flamingo rose pink, painted altar terracotta, sacred blue-lotus turquoise, burnished gold, olive-leaf green, and crisp ink black outlines."
+  },
+  {
+    "id": "casa_pal_03",
+    "label_tr": "L'Arche Yeşil Defne Yaprağı, Damalı Mermer ve Güvercin Paleti (#30/#36)",
+    "tags": ["arch", "zellige", "riviera", "antiquity", "laurel", "club", "universal"],
+    "colors_hex": ["#1E6B45", "#F4C2C2", "#E8B84B", "#4FB3BF", "#D94E34", "#FAF6EE"],
+    "prompt": "Fresh Mediterranean sanctuary palette of deep laurel-wreath emerald green, pastel pink-and-cream checkerboard marble, warm sun gold, sky turquoise, and a crimson diamond keystone accent."
+  },
+  {
+    "id": "casa_pal_04",
+    "label_tr": "45° Altın Pikap ve Barok Vitray Rozet Mandala Paleti (#13/#16/#22)",
+    "tags": ["diamond", "scarf", "zellige", "memphis", "house", "retro80s", "universal"],
+    "colors_hex": ["#D4AF37", "#B8292F", "#1B4D89", "#1E7856", "#E87A3E", "#121318"],
+    "prompt": "Opulent metallic turntable and stained-glass mandala palette of brushed 24k gold, ruby crimson, royal cobalt blue, emerald green, warm amber orange, and deep vinyl obsidian."
+  },
+  {
+    "id": "casa_pal_05",
+    "label_tr": "80'ler Kobalt Airbrush Alev, Altın ve Tenis Topu Sarısı (#4/#25/#37)",
+    "tags": ["memphis", "airbrush", "retro80s", "tennis", "grandprix", "house", "universal"],
+    "colors_hex": ["#1245A8", "#32B8E6", "#F59E2D", "#DDF247", "#F279A6", "#101420"],
+    "prompt": "Luminous 1980s retro airbrush palette transitioning from electric cobalt blue and glowing cyan aura to fiery golden-orange flames, optic tennis-ball lime yellow, and pastel pink confetti highlights."
+  },
+  {
+    "id": "casa_pal_06",
+    "label_tr": "Ukiyo-e Prusya Mavisi Dev Dalga ve Vermilyon Gün Batımı (#7/#8)",
+    "tags": ["japan", "riviera", "world_seasons", "scarf", "citrus", "universal"],
+    "colors_hex": ["#163A6B", "#3A7CA5", "#E85D35", "#F2B84B", "#265947", "#F5F1E6"],
+    "prompt": "Classic Japanese Ukiyo-e woodblock palette of deep Prussian ocean blue, cerulean wave midtones, blazing vermilion-orange sunset, golden horizon glow, pine green, and crisp white seafoam."
+  },
+  {
+    "id": "casa_pal_07",
+    "label_tr": "Gece Çöl Vahası: Siyah Zemin, Kumtaşı Altın, Terracotta ve İndigo (#40)",
+    "tags": ["mexico", "pyramid", "mystic", "arch", "zellige", "antiquity", "universal"],
+    "colors_hex": ["#0E0F12", "#D9A752", "#C45B38", "#2B6E52", "#20345E", "#F4EFE6"],
+    "prompt": "High-contrast nocturnal oasis palette designed for dark grounds: obsidian night black, glowing desert-sand gold, stratified terracotta rock red, palm emerald, starry indigo, and crisp white arch rules."
+  },
+  {
+    "id": "casa_pal_08",
+    "label_tr": "Mercan Resifi, Kristal Turkuaz Şelale ve Altın Horus Şahini (#15)",
+    "tags": ["pyramid", "antiquity", "mystic", "apresski", "alpine", "riviera", "universal"],
+    "colors_hex": ["#19A7B8", "#D9A438", "#E6556F", "#7B4B94", "#F2C94C", "#13293D"],
+    "prompt": "Vibrant aquatic-and-pharaonic palette combining crystalline waterfall cyan, burnished Horus falcon gold, coral-reef pink, sea-fan violet, tropical angelfish yellow, and deep abyssal navy."
+  },
+  {
+    "id": "casa_pal_09",
+    "label_tr": "Akdeniz Mandalina/Portakal Piramidi, Yaprak Yeşili ve Neroli Beyazı (#1/#27)",
+    "tags": ["citrus", "riviera", "tennis", "club", "scarf", "zellige", "universal"],
+    "colors_hex": ["#F26A21", "#FFA62B", "#1B663E", "#D9383A", "#3B8EA5", "#FAF8F2"],
+    "prompt": "Sun-drenched Mediterranean citrus and lighthouse palette of saturated tangerine orange, golden mandarin peel, glossy forest leaf green, baroque rose crimson, coastal teal, and blossom white."
+  },
+  {
+    "id": "casa_pal_10",
+    "label_tr": "Lotus Göleti Zümrüt Yeşili, Kırmızı Fuji Güneşi ve Altın Bronz (#19/#33)",
+    "tags": ["japan", "scarf", "diamond", "memphis", "apresski", "winter", "universal"],
+    "colors_hex": ["#D62828", "#1D7058", "#E0A946", "#F497B6", "#2B4C7E", "#F8F5EE"],
+    "prompt": "Rich Japanese silk-screen and arcade palette featuring blazing crimson sun red, emerald lotus-pond green, embossed metallic bronze-gold, sakura lotus pink, mountain slate blue, and crane white."
+  },
+  {
+    "id": "casa_pal_11",
+    "label_tr": "Süpersonik Concorde İndigo Gökyüzü, Cam Turkuazı ve Grand Prix Kırmızısı (#14)",
+    "tags": ["grandprix", "racing", "motorsport", "diplomatique", "apresski", "alpine", "universal"],
+    "colors_hex": ["#1B264F", "#2EC4B6", "#D90429", "#E5B842", "#2A7F62", "#F4F6F9"],
+    "prompt": "Aerodynamic aviation and Monaco motorsport palette of twilight stratosphere indigo, reflective skyscraper glass turquoise, racing chicane red, brushed trophy gold, palm green, and Concorde white."
+  },
+  {
+    "id": "casa_pal_12",
+    "label_tr": "Kraliyet Kırmızısı Barok Damask, Ferforje Siyah ve Antik Amfora (#17/#18)",
+    "tags": ["scarf", "diamond", "zellige", "arch", "antiquity", "laurel", "universal"],
+    "colors_hex": ["#B81D24", "#141416", "#D4A338", "#C86446", "#235789", "#F7F4EB"],
+    "prompt": "Regal silk-carré and archaeological amphora palette of deep crimson damask red, wrought-iron satin black, gilded rope gold, Greek ceramic terracotta, Aegean cobalt, and parchment cream."
+  }
+]

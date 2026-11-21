@@ -1,0 +1,107 @@
+{
+  "id": "casablanca",
+  "name": "Casablanca Stili — Après-Sport & Sürreal İpek Eşarp",
+  "description": "42 gerçek arşiv tasarımından çıkarılmış çok katmanlı sürreal mimari portallar: ters üçgen (V-portal) panoramalar, Greco-Mısır taş sunak ve flamingo/raket simetrileri, L'Arche yaprak-güvercin kemerleri, 45° altın pikap rozet mandalalar, 80'ler airbrush tenis meteorları ve Ukiyo-e/Akdeniz kulüp kolajları.",
+  "style_dna": "High-density multi-layered Parisian après-sport luxury graphic illustration combining neoclassical Greco-Egyptian and French-Moroccan architectural framing with surreal multi-plane storytelling. Every composition MUST feature four distinct visual depth layers: (1) a razor-sharp geometric portal frame or sculpted stone altar pedestal, (2) a lush foreground botanical or fauna anchor that dynamically overlaps and breaks outside the frame borders, (3) an architectural or sports mid-ground (red-clay tennis court, checkerboard marble courtyard, turquoise cove, or vinyl turntable deck), and (4) a surreal cosmic or atmospheric horizon (twin golden pyramids, retro chrome UFO tractor beam, tennis-ball moon, or radiant sunburst sky). Rendered with luminous hand-painted studio gouache, 1980s retro airbrush gradients, and crisp screen-print ink contours without any fabric texture.",
+  "themes": [
+    {
+      "id": "all",
+      "label_tr": "Tüm Kapsüller (Karışık)",
+      "label_en": "",
+      "tags": []
+    },
+    {
+      "id": "riviera_tennis",
+      "label_tr": "Riviera ve Tenis Kulübü",
+      "label_en": "Riviera & Tennis Club Multi-Layer Postcard (Red-Clay Courts, Floating Wooden Rackets, Citrus Pyramids & Coastal Lighthouses)",
+      "tags": [
+        "tennis",
+        "riviera",
+        "citrus",
+        "club"
+      ]
+    },
+    {
+      "id": "zellige_arch",
+      "label_tr": "Fas Zellige, Kemer ve Elmas",
+      "label_en": "L'Arche Leaf-Wreathed Sanctuary Windows, 45-Degree Gold Turntable Diamond Mandalas & Moroccan Zellige Courtyards",
+      "tags": [
+        "zellige",
+        "arch",
+        "diamond",
+        "scarf"
+      ]
+    },
+    {
+      "id": "grand_prix",
+      "label_tr": "Grand Prix, Havacılık ve Hız",
+      "label_en": "Supersonic Concorde Aviation, Monaco Grand Prix Motorsport & Futuristic Glass Skyline Portals",
+      "tags": [
+        "grandprix",
+        "racing",
+        "motorsport"
+      ]
+    },
+    {
+      "id": "apres_ski",
+      "label_tr": "Après-Ski ve Kristal Zirve",
+      "label_en": "Alpine Après-Ski Luxury Chalet, Crystal Waterfall Skyscrapers & Snowy Mountain Sunburst Portals",
+      "tags": [
+        "apresski",
+        "alpine",
+        "winter"
+      ]
+    },
+    {
+      "id": "memphis_airbrush",
+      "label_tr": "80'ler Airbrush, Pikap ve Pop-Art",
+      "label_en": "1980s Chrome & Cobalt Airbrush Flaming Tennis Meteor, Gold Vinyl DJ Turntable & Japanese Arcade Pop-Art Collage",
+      "tags": [
+        "memphis",
+        "airbrush",
+        "retro80s",
+        "house"
+      ]
+    },
+    {
+      "id": "antiquity_mystic",
+      "label_tr": "Greco-Mısır Sunak, Piramit ve UFO",
+      "label_en": "Painted Greco-Egyptian Stone Altars, Twin Golden Pyramids, Chrome UFO Tractor Beams, Horus Falcons & Classical Marble Busts",
+      "tags": [
+        "antiquity",
+        "pyramid",
+        "mystic",
+        "laurel"
+      ]
+    },
+    {
+      "id": "world_seasons",
+      "label_tr": "Dünya Sezonları (Ukiyo-e / Çöl Vahası / Ada)",
+      "label_en": "Ukiyo-e Great Ocean Wave Triangle, Red Sunset Crane Pond, Nocturnal Desert Iguana Oasis & Tropical Volcano Island",
+      "tags": [
+        "japan",
+        "mexico",
+        "la_funk",
+        "lagos",
+        "diplomatique"
+      ]
+    }
+  ],
+  "render_modes": [
+    {
+      "id": "auto",
+      "label_tr": "Hibrit İmza (Çok Katmanlı Eşarp + Airbrush)",
+      "prompt": "Hybrid Multi-Layer Signature Print Execution: Combine razor-sharp architectural portal borders and crisp hand-inked contours with rich multi-plane gouache illustration and luminous 1980s airbrush atmospheric glow inside the scene. Enforce frame-breaking 3D overlap where foreground palm fronds, bird wings, flames, or aircraft noses project cleanly across the geometric border lines."
+    },
+    {
+      "id": "scarf_spot",
+      "label_tr": "İpek Eşarp / Düz Spot (Tramsız)",
+      "prompt": "Flat Spot Silk-Scarf Execution: Render the entire multi-layer composition strictly with razor-sharp flat solid spot-color fills enclosed by bold uniform hand-inked outlines, zero soft blur, and crisp decorative friezes optimized for direct tramsız flat-spot screen separation."
+    },
+    {
+      "id": "airbrush_watercolor",
+      "label_tr": "80'ler Airbrush ve Suluboya (Tramlı)",
+      "prompt": "1980s Retro Airbrush & Studio Gouache Execution: Render the multi-plane centerpiece with glowing cobalt-to-gold airbrush flame gradients, metallic specular highlights, wet-on-dry studio watercolor clouds, and soft pastel sorbet aura transitions enclosed within a crisp print-ready perimeter (ready for LAP + 45 LPI halftone printing)."
+    }
+  ]
+}
