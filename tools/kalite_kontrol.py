@@ -17,6 +17,50 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
+# Resmi SAATI / EU-US ipek katalog fizik degerleri ve Rule-of-N (N=5.0) sinirlari
+SAATI_MESH_CATALOG = {
+    "45": {"tpi": 115, "thread_um": 80, "open_area_pct": 40.7, "max_lpi": 25.0, "min_line_mm": 0.55},
+    "55": {"tpi": 140, "thread_um": 70, "open_area_pct": 37.8, "max_lpi": 32.0, "min_line_mm": 0.48},
+    "77": {"tpi": 195, "thread_um": 55, "open_area_pct": 33.4, "max_lpi": 45.0, "min_line_mm": 0.40},
+    "90": {"tpi": 230, "thread_um": 48, "open_area_pct": 32.0, "max_lpi": 50.0, "min_line_mm": 0.32},
+    "120": {"tpi": 305, "thread_um": 35, "open_area_pct": 33.5, "max_lpi": 65.0, "min_line_mm": 0.25},
+}
+
+
+def analyze_min_thickness_mm(mask_bool, ppi=508, min_mm=0.40):
+    """Morfolojik acma + medial eksen mesafe donusumuyle en ince cizgi/nokta kalinligini (mm) olcer."""
+    m = np.asarray(mask_bool, dtype=bool)
+    total_ink = int(m.sum())
+    if total_ink == 0:
+        return {"min_detected_mm": 0.0, "thin_ratio_pct": 0.0, "thin_pixels": 0, "total_pixels": 0, "ok": True}
+
+    px_mm = 25.4 / float(max(72, int(ppi)))
+    m_u8 = m.astype(np.uint8)
+    min_diam_px = max(3, int(round(float(min_mm) / px_mm)))
+    k_sz = min_diam_px if (min_diam_px % 2 == 1) else (min_diam_px + 1)
+    kern = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k_sz, k_sz))
+
+    # Morfolojik acma: min_mm altindaki ince cizgi ve noktalar elenir, kalin govdeler korunur
+    opened = cv2.morphologyEx(m_u8, cv2.MORPH_OPEN, kern) > 0
+    thin_px = int((m & (~opened)).sum())
+    thin_ratio_pct = (thin_px / float(total_ink)) * 100.0
+
+    # Medial eksen (yerel tepe mesafesi) uzerinden gercek minimum cizgi kalinligi
+    dist_px = cv2.distanceTransform(m_u8, cv2.DIST_L2, 5)
+    dil_dist = cv2.dilate(dist_px, np.ones((3, 3), np.uint8))
+    medial = m & (dist_px >= (dil_dist - 1e-4)) & (dist_px > 0)
+    vals = (2.0 * dist_px[medial] * px_mm) if np.any(medial) else (2.0 * dist_px[m] * px_mm)
+    min_detected = float(np.percentile(vals, 2.0)) if vals.size > 0 else 0.0
+
+    return {
+        "min_detected_mm": round(min_detected, 3),
+        "thin_ratio_pct": round(thin_ratio_pct, 2),
+        "thin_pixels": thin_px,
+        "total_pixels": total_ink,
+        "ok": bool(thin_ratio_pct <= 25.0),
+    }
+
+
 def parse_args():
     if len(sys.argv) < 2:
         raise SystemExit("Kullanim: python3 tools/kalite_kontrol.py cikti_klasoru [kaynak.png] [PPI=508]")
@@ -171,6 +215,18 @@ def main():
             elif not is_black_tram:
                 if frac > 0.10 and tn > 2000:
                     warn.append(f"[{setn}] {ch['ad']}: %{frac*100:.0f} bilesen <= {tiny_area}px (elekte tutunmayacak mikro nokta)")
+
+            # 3B) Duz / lap kanallarda 0.40 mm minimum pozitif cizgi kalinligi denetimi
+            if ch['rol'] in ('lap', 'fon', 'ust_beyaz') or mod == 'tramsiz':
+                th_res = analyze_min_thickness_mm(ch['mask'], ppi=PPI_EXP, min_mm=0.40)
+                if th_res['total_pixels'] > 0:
+                    info.append(
+                        f"    kalinlik (%2 pctl): {th_res['min_detected_mm']:.2f} mm, <0.40mm payi %{th_res['thin_ratio_pct']:.1f}"
+                    )
+                    if not th_res['ok'] and ch['rol'] not in ('fon', 'fon_koyusuz'):
+                        warn.append(
+                            f"[{setn}] {ch['ad']}: %{th_res['thin_ratio_pct']:.1f} alan < 0.40 mm (kalip yikamada patlama riski)"
+                        )
 
         # 4) Duz bolgeler kontrolu
         for dz in J.get('duz_bolgeler', []):

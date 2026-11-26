@@ -833,6 +833,71 @@ def extract_whole_object_mask(
     return out
 
 
+def _run_local_ai_segmentation(
+    rgb: np.ndarray,
+    fg_mask: np.ndarray,
+    obj_budget: int,
+    yazi_ayir: bool,
+    ozel_etiketler: str,
+    backend: str,
+    log_cb: Optional[Callable[[str], None]],
+) -> List[Tuple[str, str, int, np.ndarray]]:
+    """Secilen yerel AI motoru (torch_gpu / onnx_cpu / auto) ile semantik gruplari cikarir."""
+    katman_dir = os.path.dirname(os.path.abspath(__file__))
+    if katman_dir not in sys.path:
+        sys.path.insert(0, katman_dir)
+
+    b = (backend or "auto").strip().lower()
+    try_torch = b in ("auto", "torch_gpu")
+    try_onnx = b in ("auto", "onnx_cpu", "torch_gpu")
+
+    if try_torch:
+        try:
+            import torch_ai_segmenter
+
+            st_t = torch_ai_segmenter.is_torch_cuda_ai_available()
+            if st_t.get("ready") and (b == "torch_gpu" or st_t.get("cuda")):
+                if log_cb:
+                    log_cb(
+                        f"PyTorch {st_t.get('device', 'GPU')} AI (YOLOE + SAM 2.1 + RapidOCR) baslatiliyor..."
+                    )
+                entries = torch_ai_segmenter.segment_semantic_groups_torch(
+                    rgb,
+                    fg_mask,
+                    max_layers=obj_budget,
+                    yazi_ayir=yazi_ayir,
+                    custom_labels=ozel_etiketler,
+                    log_cb=log_cb,
+                )
+                if entries:
+                    return entries
+        except Exception as exc:
+            if log_cb:
+                log_cb(f"PyTorch AI atlandi ({exc}); ONNX yedege geciliyor...")
+
+    if try_onnx:
+        try:
+            import onnx_ai_segmenter
+
+            if log_cb:
+                log_cb("Yerel ONNX AI (RapidOCR + Grounding DINO + SlimSAM) baslatiliyor...")
+            entries = onnx_ai_segmenter.segment_semantic_groups_onnx(
+                rgb,
+                fg_mask,
+                max_layers=obj_budget,
+                yazi_ayir=yazi_ayir,
+                custom_labels=ozel_etiketler,
+                log_cb=log_cb,
+            )
+            if entries:
+                return entries
+        except Exception as exc:
+            if log_cb:
+                log_cb(f"Yerel ONNX AI atlandi ({exc}); yedek kesfe geciliyor...")
+
+    return []
+
+
 def separate_by_objects(
     im_rgba: np.ndarray,
     fg_mask: np.ndarray,
@@ -845,6 +910,7 @@ def separate_by_objects(
     custom_objects: Optional[List[dict]] = None,
     yerel_ai: bool = True,
     ozel_etiketler: str = "",
+    ai_backend: str = "auto",
     log_cb: Optional[Callable[[str], None]] = None,
 ) -> Tuple[List[LayerOutput], float, List[dict]]:
     """Kesiksiz butun nesne katmanlari uretir (Obje Ayir)."""
@@ -857,38 +923,30 @@ def separate_by_objects(
     raw_entries: List[Tuple[str, str, np.ndarray]] = []
     used_onnx_ai = False
 
-    if custom_objects is None and yerel_ai:
-        katman_dir = os.path.dirname(os.path.abspath(__file__))
-        if katman_dir not in sys.path:
-            sys.path.insert(0, katman_dir)
-        try:
-            import onnx_ai_segmenter
+    eff_backend = (ai_backend or "auto").strip().lower()
+    if not yerel_ai and eff_backend == "auto":
+        eff_backend = "vision"
 
-            if log_cb:
-                log_cb("Yerel ONNX AI (RapidOCR + Grounding DINO + SlimSAM) baslatiliyor...")
-            ai_entries = onnx_ai_segmenter.segment_semantic_groups_onnx(
-                rgb,
-                fg_mask,
-                max_layers=obj_budget,
-                yazi_ayir=yazi_ayir,
-                custom_labels=ozel_etiketler,
-                log_cb=log_cb,
-            )
-            if ai_entries:
-                used_onnx_ai = True
-                for name, kind, z_ord, m in ai_entries:
-                    raw_entries.append((name, kind, m))
-                    objs_sorted.append({"name_ascii": name, "kind": kind, "z_order": z_ord})
-        except Exception as exc:
-            if log_cb:
-                log_cb(f"Yerel ONNX AI atlandi ({exc}); yedek kesfe geciliyor...")
-            raw_entries = []
-            used_onnx_ai = False
+    if custom_objects is None and eff_backend in ("auto", "torch_gpu", "onnx_cpu"):
+        ai_entries = _run_local_ai_segmentation(
+            rgb,
+            fg_mask,
+            obj_budget=obj_budget,
+            yazi_ayir=yazi_ayir,
+            ozel_etiketler=ozel_etiketler,
+            backend=eff_backend,
+            log_cb=log_cb,
+        )
+        if ai_entries:
+            used_onnx_ai = True
+            for name, kind, z_ord, m in ai_entries:
+                raw_entries.append((name, kind, m))
+                objs_sorted.append({"name_ascii": name, "kind": kind, "z_order": z_ord})
 
     if not used_onnx_ai:
         objs = custom_objects
         if objs is None:
-            if vision_kesif and api_key.strip():
+            if eff_backend != "off" and vision_kesif and api_key.strip():
                 try:
                     if log_cb:
                         log_cb("Gemini Vision ile tam obje ve yazi kesfi yapiliyor...")
@@ -1067,6 +1125,7 @@ def separate_hybrid(
     custom_objects: Optional[List[dict]] = None,
     yerel_ai: bool = True,
     ozel_etiketler: str = "",
+    ai_backend: str = "auto",
     log_cb: Optional[Callable[[str], None]] = None,
 ) -> Tuple[List[LayerOutput], float, List[dict]]:
     """Her ana obje icin Photoshop klasoru (group) ve icinde renk ailesi katmanlari uretir."""
@@ -1085,6 +1144,7 @@ def separate_hybrid(
         custom_objects=custom_objects,
         yerel_ai=yerel_ai,
         ozel_etiketler=ozel_etiketler,
+        ai_backend=ai_backend,
         log_cb=log_cb,
     )
 
@@ -1258,6 +1318,7 @@ def separate_layers(
     custom_objects: Optional[List[dict]] = None,
     yerel_ai: bool = True,
     ozel_etiketler: str = "",
+    ai_backend: str = "auto",
     log_cb: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, Any]:
     """Tek giris noktasi: gorseli acar, secili moda gore katmanlara ayirir ve export eder."""
@@ -1297,6 +1358,7 @@ def separate_layers(
             custom_objects=custom_objects,
             yerel_ai=yerel_ai,
             ozel_etiketler=ozel_etiketler,
+            ai_backend=ai_backend,
             log_cb=log_cb,
         )
     elif norm_mode == "hibrit":
@@ -1314,6 +1376,7 @@ def separate_layers(
             custom_objects=custom_objects,
             yerel_ai=yerel_ai,
             ozel_etiketler=ozel_etiketler,
+            ai_backend=ai_backend,
             log_cb=log_cb,
         )
     else:
@@ -1345,6 +1408,7 @@ def main() -> int:
     ap.add_argument("--kapsama-orani", type=float, default=0.35)
     ap.add_argument("--vision-kesif", choices=("0", "1"), default="1")
     ap.add_argument("--yerel-ai", choices=("0", "1"), default="1")
+    ap.add_argument("--ai-backend", choices=("auto", "torch_gpu", "onnx_cpu", "vision", "off"), default="auto")
     ap.add_argument("--ozel-etiketler", default="")
     ap.add_argument("--yazi-ayir", choices=("0", "1"), default="1")
     ap.add_argument("--alt-doldur", choices=("0", "1"), default="0")
@@ -1368,6 +1432,7 @@ def main() -> int:
         job_name=args.is_ad,
         yerel_ai=(args.yerel_ai == "1"),
         ozel_etiketler=args.ozel_etiketler,
+        ai_backend=args.ai_backend,
         log_cb=lambda msg: print(msg, flush=True),
     )
     print(f"MANIFEST:{res['manifest_path']}", flush=True)
