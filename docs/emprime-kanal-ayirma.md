@@ -21,6 +21,7 @@
 | [N. Terimler Sözlüğü](#n-terimler-sözlüğü) | L263-L283 | MYK tanımları, mesh, tram, LPI, spot, choke/spread ve flash cure |
 | [O. Tramsız Düz Renk Ayrımı](#o-tramsız-düz-renk-ayrımı) | L287-L296 | tramsiz.py ile vektörel grafik ayrımı ve trapping |
 | [P. Emprime Boya Kimyası ve Kumaş Eşleşmesi](#p-emprime-boya-kimyası-ve-kumaş-eşleşmesi) | L300-L316 | Beyazlı, Pat ve Şeffaf boya farkları, tıkanma, tuşe ve kumaş seçimi |
+| [Q. İpek Numaraları (45T–120T) ve 4 Modlu Ayrım](#q-ipek-numaraları-45t120t-ve-4-modlu-ayrım) | L322-L340 | 45T–120T mesh–LPI eşlemesi, eliptik nokta ve CMYK/Spot ayrım modları |
 
 ---
 
@@ -315,3 +316,25 @@ Atölye pratiğinde **Şeffaf**, **Pat** ve **Beyaz** olmak üzere 3 temel boya 
 | **Şeffaf** | Beyazlı boyaya katkı olarak | Esneklik / çatlama önleme | Beyazlı boyanın kuruyup çatlamasını önler | Tek başına örtücü değildir |
 
 > **Baskı Kararına Etkisi:** Koyu zeminli beyazlı boya baskılarında tıkanmayı önlemek için `fon` mutlaka `%100` LAP yapılır ve spot tram **`45 LPI`** seçilir; açık zeminli pat boya CMYK ("fotoğraf baskı") işlerinde tıkanma riski düşük olduğundan **`55 LPI`** tercih edilir.
+
+---
+
+## Q. İpek Numaraları (45T–120T) ve 4 Modlu Ayrım
+
+1. **İpek Numarası ↔ Güvenli LPI ve Nokta Şekli (`tools/lap_overprint_am.py` → `MESH_PROFILES`):**
+   - Formül: $\text{Güvenli Maks LPI} \approx \text{TPI} / (4{,}5 \text{–} 5)$, $\text{TPI} \approx \text{T} \times 2{,}54$.
+
+| İpek (`T`) | Mesh (`TPI`) | Güvenli Tram (`LPI`) | Min–Maks Nokta | Önerilen Nokta & Yöntem |
+|---|---|---|---|---|
+| **45T** | ~115 | 22–25 LPI *(önerilmez)* | %10 – %80 | Yuvarlak / **Tramsız LAP**, kalın beyaz `fon` |
+| **55T** | ~140 | 28–32 LPI | %8 – %82 | Yuvarlak / Koyu zemin beyaz `fon` ve düz spot |
+| **77T** | ~195 | 38–45 LPI | %5 – %85 | Yuvarlak / Su bazlı 45 LPI spot tram eşiği |
+| **90T** | ~230 | 45–50 LPI | %4 – %88 | **Eliptik (Chain)** / Simulated Process & CMYK+Spot optimumu |
+| **120T** | ~305 | 55–65 LPI | %3 – %90 | **Eliptik (Chain)** / Açık zeminde pat boyalı CMYK ("fotoğraf baskı") |
+
+2. **4 Ayrım Modu (`tools/lap_aile_ayir.py` & `tools/emprime_akilli_analiz.py`):**
+   - `oto`: Mevcut LAP + dinamik renk ailesi ayrımı.
+   - `cmyk`: 4 kanallı CMYK (klasik rozet `15°/75°/7.5°/45°` veya `tek_aci` dot-on-dot).
+   - `cmyk_spot`: CMYK + seçili yardımcı spotlar (yardımcı basılan bölgede *Under-Spot Removal* ile CMYK düşürülür).
+   - `ozel_renk`: Yalnızca seçilen N ana/koyu renk + açık tonlarda beyaz/zemin tramlama + opsiyonel `--ust-beyaz`.
+   - **Akıllı Minimum Renk Analizi (`emprime_akilli_analiz.py`):** 3 derinlik (`hizli`, `dengeli`, `derin`) ve `--stop-flag` erken durdurma ile CMYK gamut dışı testi + `K=3..10` kalite eğrisi hesaplanır.

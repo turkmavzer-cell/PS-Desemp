@@ -100,19 +100,73 @@ def auto_color_name(rgb, suffix=""):
     return f"{base}_{suffix}" if suffix else base
 
 
-def build_am_threshold_tile(lpi=45.0, angle_deg=15.0, ppi=508.0):
+MESH_PROFILES = {
+    "45": {
+        "tpi": 115,
+        "rec_lpi": 25.0,
+        "max_lpi": 25.0,
+        "min_dot": 0.10,
+        "max_dot": 0.80,
+        "shape": "round",
+        "boya_notu": "Kalın beyaz fon / düz LAP; tram önerilmez",
+    },
+    "55": {
+        "tpi": 140,
+        "rec_lpi": 32.0,
+        "max_lpi": 32.0,
+        "min_dot": 0.08,
+        "max_dot": 0.82,
+        "shape": "round",
+        "boya_notu": "Koyu zemin beyaz fon ve düz spot için ideal",
+    },
+    "77": {
+        "tpi": 195,
+        "rec_lpi": 45.0,
+        "max_lpi": 45.0,
+        "min_dot": 0.05,
+        "max_dot": 0.85,
+        "shape": "round",
+        "boya_notu": "Su bazlı / beyazlı boyada 45 LPI spot tram eşiği",
+    },
+    "90": {
+        "tpi": 230,
+        "rec_lpi": 45.0,
+        "max_lpi": 50.0,
+        "min_dot": 0.04,
+        "max_dot": 0.88,
+        "shape": "elliptical",
+        "boya_notu": "Simulated Process & CMYK+Spot optimumu",
+    },
+    "120": {
+        "tpi": 305,
+        "rec_lpi": 55.0,
+        "max_lpi": 65.0,
+        "min_dot": 0.03,
+        "max_dot": 0.90,
+        "shape": "elliptical",
+        "boya_notu": "CMYK fotoğraf baskı (pat/şeffaf boya) ve ince tram",
+    },
+}
+
+
+def build_am_threshold_tile(lpi=45.0, angle_deg=15.0, ppi=508.0, shape="round", phase_u=0.0, phase_v=0.0):
     """
-    Alan-dogrusal (CDF kalibreli) yuvarlak kosinus AM tram esik fonksiyonu parametreleri.
-    Tum kanallar ayni piksel koordinatlarindan uretildigi icin %100 dot-on-dot faz garantiler.
+    Alan-dogrusal (CDF kalibreli) yuvarlak veya eliptik (chain) kosinus AM tram esik fonksiyonu.
+    Tum kanallar ayni piksel koordinatlarindan uretildigi icin %100 dot-on-dot faz garantiler;
+    phase_u / phase_v ile istenirse kontrollu faz kaydirma uygulanabilir.
     """
+    shape_norm = "elliptical" if str(shape).lower() in ("elliptical", "eliptik", "chain") else "round"
     period = ppi / lpi  # ~11.29 px @ 508 PPI / 45 LPI
     rad = math.radians(angle_deg)
     ca, sa = math.cos(rad), math.sin(rad)
     # 128x128 ornek hucrede CDF kalibrasyonu (alan dogrusalligi)
     u = np.linspace(-math.pi, math.pi, 128, endpoint=False, dtype=np.float32)
     uu, vv = np.meshgrid(u, u)
-    # Yuvarlak nokta spot fonksiyonu: merkezde 1 (en koyu), kenarda 0
-    spot = 0.5 * (1.0 + 0.5 * (np.cos(uu) + np.cos(vv)))
+    if shape_norm == "elliptical":
+        spot = 0.5 * (1.0 + 0.62 * np.cos(uu) + 0.38 * np.cos(vv))
+    else:
+        # Yuvarlak nokta spot fonksiyonu: merkezde 1 (en koyu), kenarda 0
+        spot = 0.5 * (1.0 + 0.5 * (np.cos(uu) + np.cos(vv)))
     vals = np.sort(spot.ravel())
     # CDF LUT: spot degeri -> [0, 1] esik (kucuk esik = nokta merkezi, buyuk esik = kenar)
     # Yogunluk d >= threshold -> murekkep (1)
@@ -125,12 +179,15 @@ def build_am_threshold_tile(lpi=45.0, angle_deg=15.0, ppi=508.0):
         "ca": ca,
         "sa": sa,
         "lut": thresh_lut,
+        "shape": shape_norm,
+        "phase_u": float(phase_u),
+        "phase_v": float(phase_v),
     }
 
 
-def apply_am_screen_tiled(density_f32, screen_params, min_dot=0.03, tile_h=512):
+def apply_am_screen_tiled(density_f32, screen_params, min_dot=0.03, max_dot=1.0, tile_h=512):
     """
-    8-bit surekli ton yogunluk haritasini (0..1) tek fazli 45 LPI 15° yuvarlak AM trama cevirir.
+    8-bit surekli ton yogunluk haritasini (0..1) tek fazli 45/55 LPI yuvarlak veya eliptik AM trama cevirir.
     Donus: bool mask (True = murekkep / siyah film).
     """
     h, w = density_f32.shape
@@ -139,17 +196,27 @@ def apply_am_screen_tiled(density_f32, screen_params, min_dot=0.03, tile_h=512):
     ca = screen_params["ca"]
     sa = screen_params["sa"]
     lut = screen_params["lut"]
+    phase_u = float(screen_params.get("phase_u", 0.0))
+    phase_v = float(screen_params.get("phase_v", 0.0))
+    is_elliptical = screen_params.get("shape", "round") == "elliptical"
+    apply_cap = float(max_dot) < 0.999
+    cap_val = float(max_dot)
     xs = np.arange(w, dtype=np.float32)
     for y0 in range(0, h, tile_h):
         y1 = min(h, y0 + tile_h)
         ys = np.arange(y0, y1, dtype=np.float32)[:, None]
         xx = xs[None, :]
-        u = (xx * ca + ys * sa) * freq
-        v = (-xx * sa + ys * ca) * freq
-        spot = 0.5 * (1.0 + 0.5 * (np.cos(u) + np.cos(v)))
+        u = (xx * ca + ys * sa) * freq + phase_u
+        v = (-xx * sa + ys * ca) * freq + phase_v
+        if is_elliptical:
+            spot = 0.5 * (1.0 + 0.62 * np.cos(u) + 0.38 * np.cos(v))
+        else:
+            spot = 0.5 * (1.0 + 0.5 * (np.cos(u) + np.cos(v)))
         idx = np.clip((spot * 1023.0).astype(np.int32), 0, 1023)
         thr = lut[idx]
         d = density_f32[y0:y1]
+        if apply_cap:
+            d = np.minimum(d, cap_val)
         out[y0:y1] = (d >= min_dot) & (d > thr)
     return out
 

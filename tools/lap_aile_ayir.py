@@ -16,6 +16,7 @@ import argparse
 import datetime
 import io
 import json
+import math
 import os
 import re
 import struct
@@ -900,22 +901,26 @@ def assign_flat_tones_chunked(lab_full, flat_mask, tone_list, chunk_rows=512):
     return out
 
 
-def screen_channel_hybrid(cont_f32, fig_full, screen_params, min_dot=0.03, min_px=4):
+def screen_channel_hybrid(cont_f32, fig_full, screen_params, min_dot=0.03, min_px=4, max_dot=1.0, force_tram=False):
     """
     v3 Karma Kanal Tramlama:
-      - cont_f32 >= 0.96 -> dogrudan %100 kati (ink = True, TRAMSIZ).
-      - min_dot <= cont_f32 < 0.96 -> 45/55 LPI yuvarlak AM tram (L.apply_am_screen_tiled).
+      - force_tram=False ve cont_f32 >= 0.96 -> dogrudan %100 kati (ink = True, TRAMSIZ).
+      - [min_dot..0.96) (veya force_tram=True iken tum kanal) -> 45/55 LPI yuvarlak/eliptik AM tram.
     """
     cont_f32 = cont_f32.copy()
     cont_f32[~fig_full] = 0.0
     cont_f32[cont_f32 < min_dot] = 0.0
 
-    solid_mask = fig_full & (cont_f32 >= 0.96)
-    tram_zone = fig_full & (cont_f32 >= min_dot) & (cont_f32 < 0.96)
+    if force_tram:
+        solid_mask = np.zeros_like(fig_full, dtype=bool)
+        tram_zone = fig_full & (cont_f32 >= min_dot)
+    else:
+        solid_mask = fig_full & (cont_f32 >= 0.96)
+        tram_zone = fig_full & (cont_f32 >= min_dot) & (cont_f32 < 0.96)
 
     if tram_zone.any():
         tram_density = np.where(tram_zone, cont_f32, 0.0).astype(np.float32)
-        ink_tram = L.apply_am_screen_tiled(tram_density, screen_params, min_dot=min_dot)
+        ink_tram = L.apply_am_screen_tiled(tram_density, screen_params, min_dot=min_dot, max_dot=max_dot)
     else:
         ink_tram = np.zeros_like(fig_full, dtype=bool)
 
@@ -934,6 +939,636 @@ def screen_channel_hybrid(cont_f32, fig_full, screen_params, min_dot=0.03, min_p
             if len(small_ids) > 0:
                 ink[np.isin(cc_lbl, small_ids)] = False
     return cont_f32, ink
+
+
+def parse_custom_colors_arg(raw_arg):
+    """
+    --ozel-renkler argumanini (JSON dosya yolu veya '#HEX:Ad:rol,...' dizesi) cozer.
+    Donus: [{"hex": "#RRGGBB", "rgb": (r, g, b), "ad": str, "rol": "tram"|"lap"|"siyah"|"ust_beyaz"}, ...]
+    """
+    if not raw_arg:
+        return []
+    raw_str = str(raw_arg).strip()
+    if not raw_str:
+        return []
+
+    items = []
+    if os.path.exists(raw_str):
+        with open(raw_str, "r", encoding="utf-8") as fp:
+            loaded = json.load(fp)
+        if isinstance(loaded, dict):
+            loaded = loaded.get("renkler") or loaded.get("colors") or []
+        for it in loaded:
+            if isinstance(it, dict):
+                rgb = it.get("rgb")
+                hx = it.get("hex")
+                if rgb and len(rgb) == 3:
+                    rgb_t = tuple(int(np.clip(round(float(x)), 0, 255)) for x in rgb)
+                elif hx:
+                    rgb_t = L.parse_hex_rgb(str(hx))
+                else:
+                    continue
+                rol = str(it.get("rol") or "tram").lower().strip()
+                if rol not in ("tram", "lap", "siyah", "ust_beyaz"):
+                    rol = "tram"
+                ad_raw = str(it.get("ad") or it.get("name") or "").strip()
+                ad_clean = re.sub(
+                    r"[^A-Za-z0-9_]+",
+                    "_",
+                    ad_raw.translate(str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU")),
+                ).strip("_")
+                if not ad_clean:
+                    ad_clean = auto_emprime_channel_name(rgb_t, suffix=("" if rol == "siyah" else rol))
+                items.append({
+                    "hex": "#{:02X}{:02X}{:02X}".format(*rgb_t),
+                    "rgb": rgb_t,
+                    "ad": ad_clean,
+                    "rol": rol,
+                })
+        return items
+
+    for part in re.split(r"[,;\n]+", raw_str):
+        part = part.strip()
+        if not part:
+            continue
+        segs = part.split(":")
+        rgb_t = L.parse_hex_rgb(segs[0])
+        rol = segs[2].lower().strip() if len(segs) >= 3 and segs[2].strip() else "tram"
+        if rol not in ("tram", "lap", "siyah", "ust_beyaz"):
+            rol = "tram"
+        ad_raw = segs[1].strip() if len(segs) >= 2 and segs[1].strip() else ""
+        ad_clean = re.sub(
+            r"[^A-Za-z0-9_]+",
+            "_",
+            ad_raw.translate(str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU")),
+        ).strip("_")
+        if not ad_clean:
+            ad_clean = auto_emprime_channel_name(rgb_t, suffix=("" if rol == "siyah" else rol))
+        items.append({
+            "hex": "#{:02X}{:02X}{:02X}".format(*rgb_t),
+            "rgb": rgb_t,
+            "ad": ad_clean,
+            "rol": rol,
+        })
+    return items
+
+
+def extract_cmyk_4ch(rgb_u8):
+    """
+    sRGB gorselden 4 kanalli CMYK yogunluk haritasi (H, W, 4) float32 [0..1] cikarir.
+    Sistemde CoatedFOGRA39 / GRACoL ICC varsa onu kullanir; yoksa analitik GCR yedegi doner.
+    """
+    icc_candidates = [
+        r"C:\Windows\System32\spool\drivers\color\CoatedFOGRA39.icc",
+        r"C:\Windows\System32\spool\drivers\color\CoatedGRACoL2006.icc",
+        r"C:\Windows\System32\spool\drivers\color\EuroscaleCoated.icc",
+        "/usr/share/color/icc/colord/FOGRA39L_coated.icc",
+    ]
+    for icc_path in icc_candidates:
+        if os.path.exists(icc_path):
+            try:
+                srgb = ImageCms.createProfile("sRGB")
+                cmyk_prof = ImageCms.getOpenProfile(icc_path)
+                xform = ImageCms.buildTransformFromOpenProfiles(
+                    srgb, cmyk_prof, "RGB", "CMYK",
+                    renderingIntent=ImageCms.Intent.RELATIVE_COLORIMETRIC,
+                )
+                cmyk = np.array(ImageCms.applyTransform(Image.fromarray(rgb_u8, "RGB"), xform), dtype=np.float32) / 255.0
+                return cmyk
+            except Exception:
+                pass
+
+    rf = np.clip(rgb_u8.astype(np.float32) / 255.0, 0.0, 1.0)
+    c_raw = 1.0 - rf[..., 0]
+    m_raw = 1.0 - rf[..., 1]
+    y_raw = 1.0 - rf[..., 2]
+    k_min = np.minimum(np.minimum(c_raw, m_raw), y_raw)
+    k_gcr = np.power(np.clip((k_min - 0.25) / 0.75, 0.0, 1.0), 1.30)
+    denom = np.maximum(1.0 - k_gcr, 1e-4)
+    c = np.clip((c_raw - k_gcr) / denom, 0.0, 1.0)
+    m = np.clip((m_raw - k_gcr) / denom, 0.0, 1.0)
+    y = np.clip((y_raw - k_gcr) / denom, 0.0, 1.0)
+    return np.stack([c, m, y, k_gcr], axis=-1).astype(np.float32)
+
+
+def extract_cmyk_clean_density(rgb_u8, stroke_mask=None):
+    """
+    Temiz Yogunluklu (Min. Ust Uste Bindirme) CMYK ayrimi:
+    1) Tam %100 GCR ile ortak gri bilesen K kanalina aktarilir; boylece her pikselde en az
+       bir kromatik kanal kesinlikle 0.0 olur (3'lu C+M+Y camurlasmasi sifirlanir).
+    2) Kalan 1-2 kromatik kanalda zayif (< 0.04) sizintilar temizlenir, baskin murekkep
+       doygunlugu korunarak toplam murekkep limiti (TAC <= 1.55) dengelenir.
+    3) stroke_mask (saf siyah kontur/yazi) alanlarinda C=M=Y=0, K=1.0 knockout uygulanir.
+    """
+    rf = np.clip(rgb_u8.astype(np.float32) / 255.0, 0.0, 1.0)
+    c_raw = 1.0 - rf[..., 0]
+    m_raw = 1.0 - rf[..., 1]
+    y_raw = 1.0 - rf[..., 2]
+
+    # %100 GCR: ortak gri bileseni tamamen K'ya aktar -> min(c, m, y) == 0.0
+    k = np.minimum(np.minimum(c_raw, m_raw), y_raw)
+    k = np.clip(k, 0.0, 1.0)
+    denom = np.maximum(1.0 - k, 1e-4)
+
+    c = np.clip((c_raw - k) / denom, 0.0, 1.0)
+    m = np.clip((m_raw - k) / denom, 0.0, 1.0)
+    y = np.clip((y_raw - k) / denom, 0.0, 1.0)
+
+    # Kucuk gurultu sizintilarini at (temiz saf tek/ikili renkler icin)
+    c = np.where(c < 0.04, 0.0, c)
+    m = np.where(m < 0.04, 0.0, m)
+    y = np.where(y < 0.04, 0.0, y)
+
+    # Doygunluk & yogunluk dengesi: baskin kromatik kanali koru, cok koyu K altindaki soluk renk tasmayi azalt
+    k_suppress = np.where(k > 0.72, np.clip((1.0 - k) / 0.28, 0.0, 1.0), 1.0)
+    c *= k_suppress
+    m *= k_suppress
+    y *= k_suppress
+
+    # Tekstil dostu toplam murekkep siniri (TAC <= 1.55; saf siyah haric)
+    tac = c + m + y + k
+    over = tac > 1.55
+    if over.any():
+        c_sum = np.maximum(c + m + y, 1e-4)
+        room = np.maximum(1.55 - k, 0.0)
+        sc = np.where(over, np.minimum(1.0, room / c_sum), 1.0)
+        c *= sc
+        m *= sc
+        y *= sc
+
+    # Siyah yazilarda ve konturlarda knockout: K=%100, C=M=Y=0
+    if stroke_mask is not None and stroke_mask.any():
+        c = np.where(stroke_mask, 0.0, c)
+        m = np.where(stroke_mask, 0.0, m)
+        y = np.where(stroke_mask, 0.0, y)
+        k = np.where(stroke_mask, 1.0, k)
+
+    # Saf siyah yakininda K tam 1.0
+    pure_k = (k >= 0.92) & (c < 0.12) & (m < 0.12) & (y < 0.12)
+    if pure_k.any():
+        c = np.where(pure_k, 0.0, c)
+        m = np.where(pure_k, 0.0, m)
+        y = np.where(pure_k, 0.0, y)
+        k = np.where(pure_k, 1.0, k)
+
+    return np.stack([c, m, y, k], axis=-1).astype(np.float32)
+
+
+def _rgb_chunk_to_lab_f32(rgb_f32):
+    """[0..255] sekilli (..., 3) diziyi hizli D65 CIE Lab'a cevirir."""
+    srgb = np.clip(rgb_f32, 0.0, 255.0) / 255.0
+    lin = np.where(srgb <= 0.04045, srgb / 12.92, np.power((srgb + 0.055) / 1.055, 2.4))
+    m_xyz = np.array(
+        [
+            [0.4124564, 0.3575761, 0.1804375],
+            [0.2126729, 0.7151522, 0.0721750],
+            [0.0193339, 0.1191920, 0.9503041],
+        ],
+        dtype=np.float32,
+    )
+    d65 = np.array([0.95047, 1.00000, 1.08883], dtype=np.float32)
+    xyz = np.matmul(lin, m_xyz.T) / d65
+    eps = 216.0 / 24389.0
+    kappa = 24389.0 / 27.0
+    f = np.where(xyz > eps, np.cbrt(np.maximum(xyz, 0.0)), (kappa * xyz + 16.0) / 116.0)
+    return np.stack(
+        [116.0 * f[..., 1] - 16.0, 500.0 * (f[..., 0] - f[..., 1]), 200.0 * (f[..., 1] - f[..., 2])],
+        axis=-1,
+    ).astype(np.float32)
+
+
+def build_highlight_white_channel(rgb_full, fig_full, screen_params, min_dot=0.03, max_dot=1.0, min_px=2):
+    """
+    Koyu tisortte saf beyaz parlamalar (goz isigi, beyaz biyik, acik detaylar) icin
+    0 px choke ve Solidity=16% Ust Beyaz (Highlight White) kanali uretir.
+    """
+    lab_full = L.rgb_to_lab_cv(rgb_full)
+    L_f = lab_full[..., 0]
+    C_f = np.hypot(lab_full[..., 1], lab_full[..., 2])
+    # L >= 85 ve dusuk kroma (C <= 8.5) pikselleri ust beyaz yogunlugu
+    d_w = np.where(
+        fig_full & (C_f <= 8.5) & (L_f >= 84.0),
+        np.clip((L_f - 83.0) / 13.5, 0.0, 1.0),
+        0.0,
+    ).astype(np.float32)
+    d_w = np.where(fig_full & (L_f >= 92.5) & (C_f <= 6.5), 1.0, d_w).astype(np.float32)
+    c_w, m_w = screen_channel_hybrid(
+        d_w, fig_full, screen_params, min_dot=min_dot, min_px=min(2, int(min_px)), max_dot=max_dot
+    )
+    if not m_w.any():
+        return None
+    return {
+        "ad": "Beyaz_ust",
+        "rgb": [255, 255, 255],
+        "rol": "ust_beyaz",
+        "solidity": 16,
+        "aile": -11,
+        "is_lap": False,
+        "ink_1bit": m_w,
+        "cont_full": c_w,
+    }
+
+
+def _build_unique_name_fn():
+    used = {}
+
+    def _u(nm):
+        cnt = used.get(nm, 0) + 1
+        used[nm] = cnt
+        return nm if cnt == 1 else f"{nm}_{cnt}"
+
+    return _u
+
+
+def build_cmyk_mode_channels(
+    rgb_full,
+    fig_full,
+    flat_mask,
+    args,
+    eff_min_dot,
+    eff_max_dot,
+    need_koyu,
+    need_acik,
+    helper_spots=None,
+    stroke_mask=None,
+):
+    """
+    cmyk (Sadece CMYK) ve cmyk_spot (CMYK + Yardimci Spot Renkler) modlari icin kanal setleri uretir.
+    """
+    H, W = fig_full.shape
+    helper_spots = [h for h in (helper_spots or []) if h.get("rol") != "ust_beyaz"]
+    has_ust_beyaz_item = any(h.get("rol") == "ust_beyaz" for h in (helper_spots or []))
+    uniq_k = _build_unique_name_fn()
+    uniq_a = _build_unique_name_fn()
+    cmyk_karisim = getattr(args, "cmyk_karisim", "temiz_yogunluk")
+
+    # 1) Yardimci spot kanallari varsa once yogunluk haritalarini cikar ve CMYK altindan dus (Under-Spot Removal)
+    spot_channels_data = []
+    rgb_for_cmyk = rgb_full.copy()
+    if helper_spots:
+        lab_full = L.rgb_to_lab_cv(rgb_full)
+        L_f = lab_full[..., 0]
+        a_f = lab_full[..., 1]
+        b_f = lab_full[..., 2]
+        C_f = np.hypot(a_f, b_f)
+        hue_f = (np.degrees(np.arctan2(b_f, a_f)) % 360.0).astype(np.float32)
+
+        spot_cov = np.zeros((H, W), dtype=np.float32)
+        rgb_f32 = rgb_full.astype(np.float32)
+        scr_spot = L.build_am_threshold_tile(lpi=args.lpi, angle_deg=args.aci, ppi=float(args.ppi), shape=args.nokta_sekli)
+
+        for sp in helper_spots:
+            s_rgb = sp["rgb"]
+            s_lab = L.rgb_tuple_to_lab(s_rgb)
+            s_C = math.hypot(float(s_lab[1]), float(s_lab[2]))
+            s_hue = math.degrees(math.atan2(float(s_lab[2]), float(s_lab[1]))) % 360.0
+
+            dE = np.sqrt((L_f - s_lab[0]) ** 2 + (a_f - s_lab[1]) ** 2 + (b_f - s_lab[2]) ** 2)
+            proj = ink_projection_density(rgb_f32, s_rgb, 1.0)
+            if s_C >= 16.0:
+                dh = np.abs(((hue_f - s_hue + 180.0) % 360.0) - 180.0)
+                gate = fig_full & (C_f >= 12.0) & (dh <= 42.0) & (dE <= 42.0)
+            else:
+                gate = fig_full & (C_f <= 16.0) & (dE <= 26.0)
+
+            d_sp = np.where(gate, np.clip(1.0 - dE / 44.0, 0.0, 1.0) * 0.55 + proj * 0.45, 0.0).astype(np.float32)
+            if sp["rol"] == "lap":
+                d_sp = np.where(gate & flat_mask & (dE <= 22.0), 1.0, d_sp).astype(np.float32)
+            else:
+                d_sp = np.minimum(d_sp, max(args.max_ink_renk, 0.90)).astype(np.float32)
+            d_sp[d_sp < eff_min_dot] = 0.0
+
+            spot_cov = np.clip(spot_cov + d_sp, 0.0, 0.94)
+            c_sp, m_sp = screen_channel_hybrid(
+                d_sp, fig_full, scr_spot, min_dot=eff_min_dot, min_px=min(2, args.min_px), max_dot=eff_max_dot
+            )
+            if m_sp.any():
+                spot_channels_data.append({
+                    "ad": sp["ad"],
+                    "rgb": list(s_rgb),
+                    "rol": "lap" if sp["rol"] == "lap" else "tram",
+                    "ink_1bit": m_sp,
+                    "cont_full": c_sp,
+                })
+
+        if spot_cov.any():
+            # Yardimci spot basilan yerde CMYK'yi azalt (Under-Spot Removal)
+            rgb_for_cmyk = np.clip(
+                np.round(rgb_f32 * (1.0 - spot_cov[..., None]) + 255.0 * spot_cov[..., None]),
+                0,
+                255,
+            ).astype(np.uint8)
+        del lab_full
+
+    if cmyk_karisim == "temiz_yogunluk":
+        cmyk = extract_cmyk_clean_density(rgb_for_cmyk, stroke_mask=stroke_mask)
+        max_cmy = 0.96
+        max_k = 1.0
+        force_tram_cmy = False
+        force_tram_k = False
+    else:
+        cmyk = extract_cmyk_4ch(rgb_for_cmyk)
+        max_cmy = args.max_ink_renk
+        max_k = args.max_ink_siyah
+        force_tram_cmy = True
+        force_tram_k = True
+
+    if args.cmyk_aci_modu == "tek_aci":
+        cmyk_angles = (args.aci, args.aci, args.aci, args.aci)
+        cmyk_phases = (
+            (math.pi, math.pi),
+            (math.pi, 0.0),
+            (0.0, math.pi),
+            (0.0, 0.0),
+        ) if cmyk_karisim == "temiz_yogunluk" else ((0.0, 0.0),) * 4
+    else:
+        # 0/90 yasagini delmeden 30 derece ayrimli klasik rozet acilari (Yellow=7.5°)
+        cmyk_angles = (15.0, 75.0, 7.5, 45.0)
+        cmyk_phases = ((0.0, 0.0),) * 4
+
+    cmyk_specs = [
+        ("Cyan_tram", [0, 174, 239], 0, cmyk_angles[0], cmyk_phases[0], max_cmy, force_tram_cmy, "subtractive", "tram"),
+        ("Magenta_tram", [236, 0, 140], 1, cmyk_angles[1], cmyk_phases[1], max_cmy, force_tram_cmy, "subtractive", "tram"),
+        ("Sari_tram", [255, 242, 0], 2, cmyk_angles[2], cmyk_phases[2], max_cmy, force_tram_cmy, "subtractive", "tram"),
+        ("Siyah_tram", [0, 0, 0], 3, cmyk_angles[3], cmyk_phases[3], max_k, force_tram_k, "opaque", "siyah"),
+    ]
+
+    scr_base = L.build_am_threshold_tile(lpi=args.lpi, angle_deg=args.aci, ppi=float(args.ppi), shape=args.nokta_sekli)
+    koyu_raw = []
+    acik_raw = []
+
+    if need_koyu:
+        fon_mask = L.build_underbase_mask(fig_full, choke_px=args.choke, thin_choke_px=1, min_px=args.min_px)
+        koyu_raw.append({
+            "ad": "fon", "rgb": [255, 255, 255], "rol": "fon", "solidity": 100,
+            "aile": -10, "is_lap": True, "ink_1bit": fon_mask, "cont_full": None,
+        })
+        if args.ust_beyaz or has_ust_beyaz_item:
+            ub = build_highlight_white_channel(rgb_full, fig_full, scr_base, min_dot=eff_min_dot, max_dot=eff_max_dot, min_px=args.min_px)
+            if ub is not None:
+                koyu_raw.append(ub)
+
+    for sp in spot_channels_data:
+        if need_koyu:
+            koyu_raw.append({
+                "ad": uniq_k(sp["ad"]), "rgb": sp["rgb"], "rol": sp["rol"], "solidity": 16,
+                "aile": -5, "is_lap": False, "ink_1bit": sp["ink_1bit"], "cont_full": sp["cont_full"],
+            })
+        if need_acik:
+            acik_raw.append({
+                "ad": uniq_a(sp["ad"]), "rgb": sp["rgb"], "rol": sp["rol"], "solidity": 16,
+                "aile": -5, "is_lap": False, "ink_1bit": sp["ink_1bit"], "cont_full": sp["cont_full"],
+            })
+
+    for cname, crgb, ch_idx, ang, (pu, pv), max_ink_lim, f_tram, blend_kind, ch_rol in cmyk_specs:
+        scr_c = L.build_am_threshold_tile(
+            lpi=args.lpi, angle_deg=ang, ppi=float(args.ppi), shape=args.nokta_sekli, phase_u=pu, phase_v=pv
+        )
+        d_raw = np.clip(cmyk[..., ch_idx] * max_ink_lim, 0.0, max_ink_lim).astype(np.float32)
+        if not f_tram and ch_idx == 3 and stroke_mask is not None and stroke_mask.any():
+            d_raw = np.where(stroke_mask, 1.0, d_raw).astype(np.float32)
+        elif not f_tram:
+            d_raw = np.where(d_raw >= 0.94, 1.0, d_raw).astype(np.float32)
+        d_raw[~fig_full] = 0.0
+        d_raw[d_raw < eff_min_dot] = 0.0
+        c_full, m_1bit = screen_channel_hybrid(
+            d_raw, fig_full, scr_c, min_dot=eff_min_dot, min_px=args.min_px, max_dot=eff_max_dot, force_tram=f_tram
+        )
+        if not m_1bit.any():
+            continue
+        if need_koyu:
+            koyu_raw.append({
+                "ad": uniq_k(cname), "rgb": crgb, "rol": ch_rol, "solidity": 16,
+                "aile": -20 - ch_idx, "is_lap": False, "ink_1bit": m_1bit, "cont_full": c_full, "blend": blend_kind,
+            })
+        if need_acik:
+            acik_raw.append({
+                "ad": uniq_a(cname), "rgb": crgb, "rol": ch_rol, "solidity": 16,
+                "aile": -20 - ch_idx, "is_lap": False, "ink_1bit": m_1bit, "cont_full": c_full, "blend": blend_kind,
+            })
+
+    return koyu_raw, acik_raw
+
+
+def build_custom_spot_mode_channels(
+    rgb_full,
+    fig_full,
+    stroke_mask,
+    flat_mask,
+    custom_colors,
+    args,
+    eff_min_dot,
+    eff_max_dot,
+    need_koyu,
+    need_acik,
+    chunk_rows=256,
+    rgb_orig_full=None,
+):
+    """
+    ozel_renk (Sadece Secilen Renkler / Simulated Process + Beyaz Tram) modu.
+    Kullanicinin sectigi N rengi (sinirsiz) korur, kucuk goz/detay renklerini elemez,
+    acik tonlari beyaz fon / acik kumas uzerinden tramlamayla uretir.
+    """
+    H, W = fig_full.shape
+    src_rgb_proj = rgb_orig_full if rgb_orig_full is not None else rgb_full
+    want_ust_beyaz = args.ust_beyaz or any(c.get("rol") == "ust_beyaz" for c in custom_colors)
+    ink_colors = [c for c in custom_colors if c.get("rol") != "ust_beyaz"]
+    if not ink_colors:
+        raise ValueError("Sadece Seçilen Renkler modu için en az 1 baskı rengi seçilmelidir.")
+
+    M = len(ink_colors)
+    pal_f = np.array([c["rgb"] for c in ink_colors], dtype=np.float32)  # (M, 3)
+    pal_lab = _rgb_chunk_to_lab_f32(pal_f)
+    pal_C = np.hypot(pal_lab[:, 1], pal_lab[:, 2])
+    pal_hue = np.degrees(np.arctan2(pal_lab[:, 2], pal_lab[:, 1])) % 360.0
+
+    V = 255.0 - pal_f
+    V_norm2 = np.sum(V * V, axis=1) + 1e-6
+    U = V / 255.0
+
+    # Uyumlu cift tablosu (zıt kirlenme koruması)
+    pairs = []
+    for i in range(M):
+        for j in range(i + 1, M):
+            vi, vj = V[i], V[j]
+            g11 = float(np.dot(vi, vi)) + 1e-4
+            g22 = float(np.dot(vj, vj)) + 1e-4
+            g12 = float(np.dot(vi, vj))
+            det = g11 * g22 - g12 * g12
+            if det < 1e-3:
+                continue
+            dh = L.hue_diff_deg(float(pal_hue[i]), float(pal_hue[j]))
+            both_chrom = (pal_C[i] > 22.0) and (pal_C[j] > 22.0)
+            is_blue_yellow = (
+                ((200.0 <= pal_hue[i] <= 290.0) and (68.0 <= pal_hue[j] <= 115.0))
+                or ((200.0 <= pal_hue[j] <= 290.0) and (68.0 <= pal_hue[i] <= 115.0))
+            )
+            block_low_c = both_chrom and (dh > 125.0) and (not is_blue_yellow)
+            pairs.append((i, j, vi, vj, U[i], U[j], g11, g22, g12, det, block_low_c))
+
+    siyah_idxs = [idx for idx, c in enumerate(ink_colors) if c["rol"] == "siyah"]
+    if not siyah_idxs:
+        # En koyu notr rengi otomatik kontur yardimcisi belirle
+        dark_cands = [idx for idx in range(M) if pal_lab[idx, 0] < 24.0 and pal_C[idx] < 14.0]
+        if dark_cands:
+            siyah_idxs = [min(dark_cands, key=lambda idx: float(pal_lab[idx, 0]))]
+
+    densities = [np.zeros((H, W), dtype=np.float32) for _ in range(M)]
+    max_ink_arr = np.array(
+        [
+            1.0 if c["rol"] == "lap" else (max(args.max_ink_siyah, 0.96) if c["rol"] == "siyah" else max(args.max_ink_renk, 0.92))
+            for c in ink_colors
+        ],
+        dtype=np.float32,
+    )
+    baski_acik_amt = float(np.clip(getattr(args, "baski_aciklama", 0.0), 0.0, 0.25))
+
+    for y0 in range(0, H, chunk_rows):
+        y1 = min(H, y0 + chunk_rows)
+        fm = fig_full[y0:y1]
+        if not fm.any():
+            continue
+        ys_l, xs_l = np.where(fm)
+        pts_rgb = src_rgb_proj[y0:y1][ys_l, xs_l].astype(np.float32)  # (N, 3)
+        pts_lab = _rgb_chunk_to_lab_f32(pts_rgb)
+        pts_C = np.hypot(pts_lab[:, 1], pts_lab[:, 2])
+        N = len(pts_rgb)
+
+        P = 255.0 - pts_rgb
+        alpha_1 = np.clip(np.matmul(P, V.T) / V_norm2[None, :], 0.0, 1.0)
+        pred_1 = 255.0 - alpha_1[:, :, None] * V[None, :, :]
+        pred_1_lab = _rgb_chunk_to_lab_f32(pred_1)
+        de_1 = np.linalg.norm(pred_1_lab - pts_lab[:, None, :], axis=2)
+
+        idx_n = np.arange(N)
+        best_i = np.argmin(de_1, axis=1)
+        best_de = de_1[idx_n, best_i].copy()
+        best_a = alpha_1[idx_n, best_i].copy()
+        best_j = np.full(N, -1, dtype=np.int32)
+        best_aj = np.zeros(N, dtype=np.float32)
+
+        # Yalnizca tek renkle tam karsilanamayan (dE > 7.5) piksellerde 2-renk overprint dene
+        need2 = best_de > 7.5
+        if pairs and need2.any():
+            idx_sub = np.where(need2)[0]
+            P_sub = P[idx_sub]
+            lab_sub = pts_lab[idx_sub]
+            C_sub = pts_C[idx_sub]
+            sub_de = best_de[idx_sub].copy()
+            sub_i = best_i[idx_sub].copy()
+            sub_ai = best_a[idx_sub].copy()
+            sub_j = best_j[idx_sub].copy()
+            sub_aj = best_aj[idx_sub].copy()
+
+            for i, j, vi, vj, ui, uj, g11, g22, g12, det, block_low_c in pairs:
+                rhs1 = np.matmul(P_sub, vi)
+                rhs2 = np.matmul(P_sub, vj)
+                a1 = np.clip((g22 * rhs1 - g12 * rhs2) / det, 0.0, 1.0)
+                a2 = np.clip((g11 * rhs2 - g12 * rhs1) / det, 0.0, 1.0)
+                sub_r = (1.0 - a1[:, None] * ui[None, :]) * (1.0 - a2[:, None] * uj[None, :]) * 255.0
+                add_r = 255.0 - np.clip(a1[:, None] * vi[None, :] + a2[:, None] * vj[None, :], 0.0, 255.0)
+                pred_p = 0.60 * sub_r + 0.40 * add_r
+                de_p = np.linalg.norm(_rgb_chunk_to_lab_f32(pred_p) - lab_sub, axis=1)
+                valid = de_p + 0.6 < sub_de
+                if block_low_c:
+                    valid &= (C_sub >= 26.0)
+                if valid.any():
+                    sub_de[valid] = de_p[valid]
+                    sub_i[valid] = i
+                    sub_ai[valid] = a1[valid]
+                    sub_j[valid] = j
+                    sub_aj[valid] = a2[valid]
+
+            best_de[idx_sub] = sub_de
+            best_i[idx_sub] = sub_i
+            best_a[idx_sub] = sub_ai
+            best_j[idx_sub] = sub_j
+            best_aj[idx_sub] = sub_aj
+
+        # Saf beyaza cok yakin piksellerde (L > 92, C < 6) bos birak (beyaz fondan/kumastan gelir)
+        pure_w = (pts_lab[:, 0] > 92.0) & (pts_C < 6.0)
+        best_a[pure_w] = 0.0
+        best_aj[pure_w] = 0.0
+
+        # Siyah konturlari keskin tut (siyah kanali varsa)
+        st_chunk = stroke_mask[y0:y1][ys_l, xs_l]
+        fl_chunk = flat_mask[y0:y1][ys_l, xs_l]
+
+        for k_idx in range(M):
+            sel_i = best_i == k_idx
+            sel_j = best_j == k_idx
+            d_chunk = np.zeros(N, dtype=np.float32)
+            if sel_i.any():
+                d_chunk[sel_i] = np.maximum(d_chunk[sel_i], best_a[sel_i])
+            if sel_j.any():
+                d_chunk[sel_j] = np.maximum(d_chunk[sel_j], best_aj[sel_j])
+
+            # Baski aciklamayi yalnizca ara ton tramlara uygula (doygun/duz alanlar solmasin)
+            if baski_acik_amt > 0.0:
+                mid_tram = (d_chunk > 0.15) & (d_chunk < 0.88)
+                if mid_tram.any():
+                    d_chunk = np.where(mid_tram, d_chunk * (1.0 - baski_acik_amt), d_chunk)
+
+            if ink_colors[k_idx]["rol"] == "lap":
+                d_chunk = np.where(fl_chunk & (d_chunk >= 0.72), 1.0, d_chunk)
+            else:
+                # Duz bolgede (>=0.86) ve cok koyu alanlarda (>=0.93) kati %100 bas, ara tonlari canli tut
+                solid_hit = (fl_chunk & (d_chunk >= 0.86)) | (d_chunk >= 0.93)
+                d_chunk = np.where(solid_hit, 1.0, np.minimum(d_chunk, max_ink_arr[k_idx]))
+
+            if k_idx in siyah_idxs:
+                d_chunk = np.where(st_chunk, 1.0, d_chunk)
+            elif siyah_idxs:
+                d_chunk = np.where(st_chunk, 0.0, d_chunk)
+
+            d_chunk[d_chunk < eff_min_dot] = 0.0
+            densities[k_idx][y0 + ys_l, xs_l] = d_chunk
+
+    scr = L.build_am_threshold_tile(lpi=args.lpi, angle_deg=args.aci, ppi=float(args.ppi), shape=args.nokta_sekli)
+    uniq_k = _build_unique_name_fn()
+    uniq_a = _build_unique_name_fn()
+    koyu_raw = []
+    acik_raw = []
+
+    if need_koyu:
+        fon_mask = L.build_underbase_mask(fig_full, choke_px=args.choke, thin_choke_px=1, min_px=args.min_px)
+        koyu_raw.append({
+            "ad": "fon", "rgb": [255, 255, 255], "rol": "fon", "solidity": 100,
+            "aile": -10, "is_lap": True, "ink_1bit": fon_mask, "cont_full": None,
+        })
+        if want_ust_beyaz:
+            ub = build_highlight_white_channel(rgb_full, fig_full, scr, min_dot=eff_min_dot, max_dot=eff_max_dot, min_px=args.min_px)
+            if ub is not None:
+                koyu_raw.append(ub)
+
+    # Kullanici secili renklerde aciktan koyuya siralama
+    order_idx = sorted(range(M), key=lambda idx: -float(pal_lab[idx, 0]))
+    for idx in order_idx:
+        sp = ink_colors[idx]
+        d_map = densities[idx]
+        c_full, m_1bit = screen_channel_hybrid(
+            d_map,
+            fig_full,
+            scr,
+            min_dot=eff_min_dot,
+            min_px=min(2, args.min_px),
+            max_dot=eff_max_dot,
+        )
+        if not m_1bit.any():
+            continue
+        rol_val = "siyah" if sp["rol"] == "siyah" else ("lap" if sp["rol"] == "lap" else "tram")
+        if need_koyu:
+            koyu_raw.append({
+                "ad": uniq_k(sp["ad"]), "rgb": list(sp["rgb"]), "rol": rol_val, "solidity": 16,
+                "aile": idx, "is_lap": False, "ink_1bit": m_1bit, "cont_full": c_full,
+            })
+        if need_acik:
+            acik_raw.append({
+                "ad": uniq_a(sp["ad"]), "rgb": list(sp["rgb"]), "rol": rol_val, "solidity": 16,
+                "aile": idx, "is_lap": False, "ink_1bit": m_1bit, "cont_full": c_full,
+            })
+
+    return koyu_raw, acik_raw
 
 
 # ---------------------------------------------------------------------------
@@ -1151,8 +1786,20 @@ def render_full_overprint_layer(channels_list, fabric_rgb, set_label_txt=None, a
             continue
         m = ch["ink_1bit"][:h_draw, :]
         rgb = np.array(ch["rgb"], dtype=np.float32)
-        alpha = 0.96 if ch["rol"] in ("fon", "fon_koyusuz", "lap", "ust_beyaz") else 0.85
         sub = canvas[:h_draw, :]
+        if ch.get("blend") == "subtractive":
+            ink_norm = rgb / 255.0
+            sub[m] = sub[m] * (1.0 - 0.92 * (1.0 - ink_norm))
+            continue
+        is_black_ch = (
+            ch.get("rol") == "siyah"
+            or "siyah" in str(ch.get("ad", "")).lower()
+            or max(ch["rgb"]) <= 28
+        )
+        if ch["rol"] in ("fon", "fon_koyusuz", "lap", "ust_beyaz") or is_black_ch:
+            alpha = 0.98
+        else:
+            alpha = 0.94
         sub[m] = sub[m] * (1.0 - alpha) + rgb * alpha
 
     if art_h is not None and art_h < h and set_label_txt:
@@ -1195,8 +1842,16 @@ def main():
     ap.add_argument("--ust-tram-tavan", type=float, default=0.58, help="Profesyonel profilde ust koyu tram tavani (varsayilan 0.58)")
     ap.add_argument("--max-ink-renk", type=float, default=0.84, help="Ekonomik/tekil renk surekli ton tavani (varsayilan 0.84)")
     ap.add_argument("--max-ink-siyah", type=float, default=0.88, help="Dot gain siyah surekli ton tavani (varsayilan 0.88)")
-    ap.add_argument("--min-dot", type=float, default=0.03, help="Minimum nokta esigi (varsayilan 0.03)")
+    ap.add_argument("--min-dot", type=float, default=None, help="Minimum nokta esigi (verilmezse ipek profili veya 0.03)")
+    ap.add_argument("--max-dot", type=float, default=None, help="Maksimum tram nokta tavani (verilmezse ipek profili veya 1.0)")
     ap.add_argument("--min-px", type=int, default=4, help="Minimum izole bilesen px (varsayilan 4)")
+    ap.add_argument("--ayrim-modu", choices=["oto", "cmyk", "cmyk_spot", "ozel_renk"], default="oto", help="Ayrim modu (varsayilan: oto)")
+    ap.add_argument("--ozel-renkler", default=None, help="Secili veya yardimci spot renkler (JSON dosya yolu veya '#HEX:Ad:rol,...')")
+    ap.add_argument("--ipek", choices=["ozel", "45", "55", "77", "90", "120"], default="ozel", help="Ipek numarasi profili (varsayilan: ozel)")
+    ap.add_argument("--nokta-sekli", choices=["round", "elliptical"], default="round", help="AM tram nokta sekli (varsayilan: round)")
+    ap.add_argument("--cmyk-aci-modu", choices=["rozet", "tek_aci"], default="rozet", help="CMYK tram aci modu (rozet veya tek_aci dot-on-dot)")
+    ap.add_argument("--cmyk-karisim", choices=["temiz_yogunluk", "klasik_overprint"], default="temiz_yogunluk", help="CMYK renk elde etme yontemi (temiz_yogunluk = min. bindirme / tam GCR)")
+    ap.add_argument("--ust-beyaz", action="store_true", default=False, help="Koyu kumasta saf beyaz alanlar icin Ust Beyaz (Highlight White) kanali ekle")
     ap.add_argument("--maske", default=None, help="Istege bagli harici figur maskesi PNG")
     ap.add_argument("--tek-dosya", dest="tek_dosya", action="store_true", default=True, help="Diskte klasor kalabaligi olmadan tek dosya uret (varsayilan)")
     ap.add_argument("--tam-paket", dest="tek_dosya", action="store_false", help="Eski coklu klasor + 1-bit film + onizleme + JSON paketini uret")
@@ -1210,6 +1865,11 @@ def main():
     ap.add_argument("--is-ad", default=None, help="Etiket kisa is adi (varsayilan: dosya adindan otomatik)")
     ap.add_argument("--tarih", default=None, help="Etiket tarih (varsayilan: bugun GG.AA.YYYY)")
     args = ap.parse_args()
+
+    mesh_prof = L.MESH_PROFILES.get(args.ipek, {}) if args.ipek != "ozel" else {}
+    eff_min_dot = float(args.min_dot) if args.min_dot is not None else float(mesh_prof.get("min_dot", 0.03))
+    eff_max_dot = float(args.max_dot) if args.max_dot is not None else float(mesh_prof.get("max_dot", 1.0))
+    args.min_dot = eff_min_dot
 
     if abs(args.aci % 90.0) < 1.0:
         raise SystemExit("HATA: 0° / 90° tram acisi yasaktir. 15°, 45° veya 72° kullanin.")
@@ -1244,7 +1904,10 @@ def main():
     rgb_orig_full, fig_full = build_auto_clean_figure_mask(im, args.maske, zemin_maske=args.zemin_maske)
     H, W = rgb_orig_full.shape[:2]
     rgb_full = apply_baski_aciklama(rgb_orig_full, args.baski_aciklama)
-    print(f"[lap_aile_ayir] Desen: {W}x{H} @ {args.ppi} PPI ({W/args.ppi*2.54:.1f}x{H/args.ppi*2.54:.1f} cm) | profil={args.profil} siyah={args.siyah_mod} aciklama={args.baski_aciklama*100:.1f}%")
+    print(
+        f"[lap_aile_ayir] Desen: {W}x{H} @ {args.ppi} PPI ({W/args.ppi*2.54:.1f}x{H/args.ppi*2.54:.1f} cm) | "
+        f"mod={args.ayrim_modu} ipek={args.ipek} nokta={args.nokta_sekli} lpi={args.lpi} profil={args.profil}"
+    )
 
     ws = 2 if max(H, W) > 3500 else 1
     ws_h, ws_w = H // ws, W // ws
@@ -1261,175 +1924,200 @@ def main():
         stroke_s, flat_s, grad_s = stroke_mask, flat_mask, grad_mask
     print(f"  [v3 Karma Harita] Stroke: {stroke_mask.mean()*100:.2f}% | Flat (LAP): {flat_mask.mean()*100:.2f}% | Degrade (Tram): {grad_mask.mean()*100:.2f}%")
 
-    rgb_sm = cv2.bilateralFilter(rgb_s, 5, 10, 3)
-    lab_s = L.rgb_to_lab_cv(rgb_sm)
-    L_s, a_s, b_s = lab_s[..., 0], lab_s[..., 1], lab_s[..., 2]
-    C_s = np.hypot(a_s, b_s)
-    hue_s = (np.degrees(np.arctan2(b_s, a_s)) % 360.0).astype(np.float32)
-
-    fam_specs = detect_and_assign_families_dynamic(
-        rgb_sm, lab_s, fig_s, num_top_colors=args.renk, profil=args.profil
-    )
-
-    all_tones = []
-    for sp in fam_specs:
-        for t in sp["tones"]:
-            t_copy = dict(t)
-            t_copy["aile_id"] = sp["aile_id"]
-            all_tones.append(t_copy)
-
-    max_chrom_budget = max(1, (args.renk - 1)) if args.renk is not None else 9
-    merge_pct = float(np.clip(args.renk_birlestirme, 0.0, 30.0))
-    de_thresh = merge_pct * 1.6
-    extra_flat_tones = collect_missing_flat_tones(
-        rgb_sm, lab_s, flat_s, stroke_s, all_tones, max_total_tones=max_chrom_budget, min_de=max(8.0, de_thresh)
-    )
-    if extra_flat_tones:
-        all_tones.extend(extra_flat_tones)
-        print(f"  [v3 Ek Duz Ton] {len(extra_flat_tones)} duz alan tonu eklendi: " + ", ".join(f"{t['name']}{t['rgb']}" for t in extra_flat_tones))
-
-    before_cnt = len(all_tones)
-    all_tones = merge_close_tones(all_tones, de_thresh)
-    if len(all_tones) < before_cnt:
-        print(f"  [Yakin Renk Birlestirme %{merge_pct:.1f} (dE<={de_thresh:.1f})] {before_cnt} -> {len(all_tones)} spot ton")
-
-    print("  Dinamik Tespit Edilen Spot Murekkepler:")
-    for sp in fam_specs:
-        area_pct = sp["fmask"].mean() * 100.0
-        t_desc = " + ".join(f"{t['name']}({t['tier']}){t['rgb']}" for t in sp["tones"])
-        print(f"    Aile {sp['aile_id']} ({sp['hue_deg']:.1f}°, alan={area_pct:.2f}%): {t_desc}")
-
-    screen_params = L.build_am_threshold_tile(lpi=args.lpi, angle_deg=args.aci, ppi=float(args.ppi))
-
-    def screen_channel(cont_f32):
-        return screen_channel_hybrid(
-            cont_f32, fig_full, screen_params, min_dot=args.min_dot, min_px=args.min_px
-        )
-
-    # 1) Duz Boyali Alanlar (flat_mask): Tam cozunurlukte en yakin spot tona %100 kati (1.0) LAP
-    flat_d_list = assign_flat_tones_chunked(lab_full, flat_mask, all_tones)
-    del lab_full
-
-    # 2) Degrade / Yumusak Golge Alanlari (grad_mask): Surekli Lab projeksiyon + %85 alt bindirme
-    grad_w_s = solve_gradient_weights(lab_s, grad_s, all_tones, degrade_bindirme=args.degrade_bindirme, flat_s=flat_s)
-
-    light_or_single_k = []
-    dark_dual_k = []
-    light_or_single_a = []
-    dark_dual_a = []
-    dual_pairs_for_dod = []
-
-    used_names = {}
-    def unique_ch_name(nm):
-        cnt = used_names.get(nm, 0) + 1
-        used_names[nm] = cnt
-        return nm if cnt == 1 else f"{nm}_{cnt}"
-
     need_koyu = args.kumas in ("koyu", "ikisi") or (not args.tek_dosya)
     need_acik = args.kumas in ("acik", "ikisi") or (not args.tek_dosya)
+    dual_pairs_for_dod = []
 
-    base_masks_by_aile = {}
-    for ti, t_info in enumerate(all_tones):
-        aile_id = t_info["aile_id"]
-        ch_name = unique_ch_name(t_info["name"])
-        is_base_tier = t_info["tier"] in ("light", "single", "flat_extra")
-        flat_px = int((flat_d_list[ti] >= 0.96).sum())
-
-        if grad_s.any() and grad_w_s[ti].any():
-            if ws > 1:
-                flat_s_ti = cv2.resize(flat_d_list[ti], (ws_w, ws_h), interpolation=cv2.INTER_NEAREST)
-                combined_s = np.maximum(flat_s_ti, grad_w_s[ti])
-                grad_full = cv2.resize(combined_s, (W, H), interpolation=cv2.INTER_LINEAR)
-            else:
-                grad_full = grad_w_s[ti]
-            grad_only = np.where(grad_mask, grad_full, 0.0).astype(np.float32)
-        else:
-            grad_only = np.zeros((H, W), dtype=np.float32)
-
-        d_full_k = np.maximum(flat_d_list[ti], grad_only)
-        d_full_a = np.maximum(flat_d_list[ti], np.clip(grad_only * 1.03, 0.0, 0.95))
-
-        if (d_full_k >= args.min_dot).sum() < args.min_px and (d_full_a >= args.min_dot).sum() < args.min_px:
-            continue
-
-        c_k, m_k = screen_channel(d_full_k) if need_koyu else (None, None)
-        c_a, m_a = screen_channel(d_full_a) if need_acik else (None, None)
-
-        cov_check = m_k.mean() if m_k is not None else m_a.mean()
-        if cov_check < 0.0045 and t_info["tier"] != "flat_extra":
-            continue
-
-        grad_px = int((grad_only >= args.min_dot).sum())
-        base_rol = "lap" if (t_info.get("is_lap") and flat_px >= grad_px) else "tram"
-
-        if need_koyu:
-            entry_k = {
-                "ad": ch_name, "rgb": list(t_info["rgb"]), "rol": base_rol,
-                "solidity": 16, "aile": aile_id, "is_lap": False, "ink_1bit": m_k, "cont_full": c_k,
-            }
-            if is_base_tier:
-                light_or_single_k.append(entry_k)
-                base_masks_by_aile[aile_id] = (ch_name, m_k)
-            else:
-                dark_dual_k.append(entry_k)
-                if aile_id in base_masks_by_aile:
-                    b_name, b_mask = base_masks_by_aile[aile_id]
-                    dual_pairs_for_dod.append((ch_name, m_k, b_name, b_mask))
-
-        if need_acik:
-            entry_a = {
-                "ad": ch_name, "rgb": list(t_info["rgb"]), "rol": base_rol if base_rol == "lap" else "tram",
-                "solidity": 16, "aile": aile_id, "is_lap": False, "ink_1bit": m_a, "cont_full": c_a,
-            }
-            if is_base_tier:
-                light_or_single_a.append(entry_a)
-            else:
-                dark_dual_a.append(entry_a)
-
-    # Siyah Kanali: stroke_mask -> %100 kati (1.0, TRAMSIZ); grad_mask -> yumusak golge (tramli); flat_mask -> 0.0
-    if args.siyah_mod == "cmyk":
-        k_cmyk = extract_cmyk_k_density(rgb_full)
-        siyah_scale = args.max_ink_siyah * (1.0 - 0.5 * args.baski_aciklama)
-        d_siyah_grad = np.where(
-            grad_mask,
-            np.clip((k_cmyk - 0.035) / 0.965, 0.0, 1.0) * siyah_scale,
-            0.0,
-        ).astype(np.float32)
+    if args.ayrim_modu in ("cmyk", "cmyk_spot"):
+        del lab_full
+        helper_spots = parse_custom_colors_arg(args.ozel_renkler) if args.ayrim_modu == "cmyk_spot" else []
+        print(f"  [CMYK Modu: {args.ayrim_modu}] karisim={args.cmyk_karisim} aci_modu={args.cmyk_aci_modu} yardimci_sayisi={len(helper_spots)}")
+        koyu_raw, acik_raw = build_cmyk_mode_channels(
+            rgb_full, fig_full, flat_mask, args, eff_min_dot, eff_max_dot, need_koyu, need_acik,
+            helper_spots=helper_spots, stroke_mask=stroke_mask,
+        )
+    elif args.ayrim_modu == "ozel_renk":
+        del lab_full
+        custom_colors = parse_custom_colors_arg(args.ozel_renkler)
+        print(f"  [Ozel Secilen Renkler Modu] renk_sayisi={len(custom_colors)}: " + ", ".join(f"{c['ad']}({c['hex']}:{c['rol']})" for c in custom_colors))
+        koyu_raw, acik_raw = build_custom_spot_mode_channels(
+            rgb_full, fig_full, stroke_mask, flat_mask, custom_colors, args, eff_min_dot, eff_max_dot,
+            need_koyu, need_acik, rgb_orig_full=rgb_orig_full,
+        )
     else:
-        C_full_s = cv2.resize(C_s, (W, H), interpolation=cv2.INTER_LINEAR)
-        L_start_k = np.where(C_full_s < 8.0, 50.0, 42.0).astype(np.float32)
-        siyah_scale = args.max_ink_siyah * (1.0 - 0.5 * args.baski_aciklama)
-        d_siyah_grad = np.where(
-            grad_mask,
-            np.clip((L_start_k - lab_full_L) / (L_start_k - 10.0), 0.0, 1.0) * siyah_scale,
-            0.0,
-        ).astype(np.float32)
+        rgb_sm = cv2.bilateralFilter(rgb_s, 5, 10, 3)
+        lab_s = L.rgb_to_lab_cv(rgb_sm)
+        L_s, a_s, b_s = lab_s[..., 0], lab_s[..., 1], lab_s[..., 2]
+        C_s = np.hypot(a_s, b_s)
+        hue_s = (np.degrees(np.arctan2(b_s, a_s)) % 360.0).astype(np.float32)
 
-    d_siyah_grad[d_siyah_grad < args.min_dot] = 0.0
-    d_siyah_full_k = np.where(stroke_mask, 1.0, d_siyah_grad).astype(np.float32)
-    d_siyah_full_a = np.where(stroke_mask, 1.0, np.clip(d_siyah_grad * 1.03, 0.0, 0.90)).astype(np.float32)
+        fam_specs = detect_and_assign_families_dynamic(
+            rgb_sm, lab_s, fig_s, num_top_colors=args.renk, profil=args.profil
+        )
 
-    koyu_raw = []
-    acik_raw = []
-    if need_koyu:
-        c_bk_k, m_bk_k = screen_channel(d_siyah_full_k)
-        fon_mask = L.build_underbase_mask(fig_full, choke_px=args.choke, thin_choke_px=1, min_px=args.min_px)
-        # Figur icindeki duz acik krem/beyaz yazilarin choke ile incelmesini onle
-        eroded_fig = cv2.erode(fig_full.astype(np.uint8), L.disk(max(1, args.choke))) > 0
-        fon_mask |= (eroded_fig & flat_mask & (lab_full_L >= 84.0))
-        koyu_raw = (
-            [{"ad": "fon", "rgb": [255, 255, 255], "rol": "fon", "solidity": 100, "aile": -10, "is_lap": True, "ink_1bit": fon_mask, "cont_full": None}]
-            + light_or_single_k
-            + dark_dual_k
-            + [{"ad": "Siyah_tram", "rgb": [0, 0, 0], "rol": "tram", "solidity": 16, "aile": -1, "is_lap": False, "ink_1bit": m_bk_k, "cont_full": c_bk_k}]
+        all_tones = []
+        for sp in fam_specs:
+            for t in sp["tones"]:
+                t_copy = dict(t)
+                t_copy["aile_id"] = sp["aile_id"]
+                all_tones.append(t_copy)
+
+        max_chrom_budget = max(1, (args.renk - 1)) if args.renk is not None else 9
+        merge_pct = float(np.clip(args.renk_birlestirme, 0.0, 30.0))
+        de_thresh = merge_pct * 1.6
+        extra_flat_tones = collect_missing_flat_tones(
+            rgb_sm, lab_s, flat_s, stroke_s, all_tones, max_total_tones=max_chrom_budget, min_de=max(8.0, de_thresh)
         )
-    if need_acik:
-        c_bk_a, m_bk_a = screen_channel(d_siyah_full_a)
-        acik_raw = (
-            light_or_single_a
-            + dark_dual_a
-            + [{"ad": "Siyah_tram", "rgb": [0, 0, 0], "rol": "tram", "solidity": 16, "aile": -1, "is_lap": False, "ink_1bit": m_bk_a, "cont_full": c_bk_a}]
-        )
+        if extra_flat_tones:
+            all_tones.extend(extra_flat_tones)
+            print(f"  [v3 Ek Duz Ton] {len(extra_flat_tones)} duz alan tonu eklendi: " + ", ".join(f"{t['name']}{t['rgb']}" for t in extra_flat_tones))
+
+        before_cnt = len(all_tones)
+        all_tones = merge_close_tones(all_tones, de_thresh)
+        if len(all_tones) < before_cnt:
+            print(f"  [Yakin Renk Birlestirme %{merge_pct:.1f} (dE<={de_thresh:.1f})] {before_cnt} -> {len(all_tones)} spot ton")
+
+        print("  Dinamik Tespit Edilen Spot Murekkepler:")
+        for sp in fam_specs:
+            area_pct = sp["fmask"].mean() * 100.0
+            t_desc = " + ".join(f"{t['name']}({t['tier']}){t['rgb']}" for t in sp["tones"])
+            print(f"    Aile {sp['aile_id']} ({sp['hue_deg']:.1f}°, alan={area_pct:.2f}%): {t_desc}")
+
+        screen_params = L.build_am_threshold_tile(lpi=args.lpi, angle_deg=args.aci, ppi=float(args.ppi), shape=args.nokta_sekli)
+
+        def screen_channel(cont_f32):
+            return screen_channel_hybrid(
+                cont_f32, fig_full, screen_params, min_dot=eff_min_dot, min_px=args.min_px, max_dot=eff_max_dot
+            )
+
+        # 1) Duz Boyali Alanlar (flat_mask): Tam cozunurlukte en yakin spot tona %100 kati (1.0) LAP
+        flat_d_list = assign_flat_tones_chunked(lab_full, flat_mask, all_tones)
+        del lab_full
+
+        # 2) Degrade / Yumusak Golge Alanlari (grad_mask): Surekli Lab projeksiyon + %85 alt bindirme
+        grad_w_s = solve_gradient_weights(lab_s, grad_s, all_tones, degrade_bindirme=args.degrade_bindirme, flat_s=flat_s)
+
+        light_or_single_k = []
+        dark_dual_k = []
+        light_or_single_a = []
+        dark_dual_a = []
+
+        used_names = {}
+        def unique_ch_name(nm):
+            cnt = used_names.get(nm, 0) + 1
+            used_names[nm] = cnt
+            return nm if cnt == 1 else f"{nm}_{cnt}"
+
+        base_masks_by_aile = {}
+        for ti, t_info in enumerate(all_tones):
+            aile_id = t_info["aile_id"]
+            ch_name = unique_ch_name(t_info["name"])
+            is_base_tier = t_info["tier"] in ("light", "single", "flat_extra")
+            flat_px = int((flat_d_list[ti] >= 0.96).sum())
+
+            if grad_s.any() and grad_w_s[ti].any():
+                if ws > 1:
+                    flat_s_ti = cv2.resize(flat_d_list[ti], (ws_w, ws_h), interpolation=cv2.INTER_NEAREST)
+                    combined_s = np.maximum(flat_s_ti, grad_w_s[ti])
+                    grad_full = cv2.resize(combined_s, (W, H), interpolation=cv2.INTER_LINEAR)
+                else:
+                    grad_full = grad_w_s[ti]
+                grad_only = np.where(grad_mask, grad_full, 0.0).astype(np.float32)
+            else:
+                grad_only = np.zeros((H, W), dtype=np.float32)
+
+            d_full_k = np.maximum(flat_d_list[ti], grad_only)
+            d_full_a = np.maximum(flat_d_list[ti], np.clip(grad_only * 1.03, 0.0, 0.95))
+
+            if (d_full_k >= eff_min_dot).sum() < args.min_px and (d_full_a >= eff_min_dot).sum() < args.min_px:
+                continue
+
+            c_k, m_k = screen_channel(d_full_k) if need_koyu else (None, None)
+            c_a, m_a = screen_channel(d_full_a) if need_acik else (None, None)
+
+            cov_check = m_k.mean() if m_k is not None else m_a.mean()
+            fig_ratio = max(float(fig_full.mean()), 0.05)
+            cov_rel = cov_check / fig_ratio
+            if cov_rel < 0.008 and t_info["tier"] != "flat_extra":
+                continue
+
+            grad_px = int((grad_only >= eff_min_dot).sum())
+            base_rol = "lap" if (t_info.get("is_lap") and flat_px >= grad_px) else "tram"
+
+            if need_koyu:
+                entry_k = {
+                    "ad": ch_name, "rgb": list(t_info["rgb"]), "rol": base_rol,
+                    "solidity": 16, "aile": aile_id, "is_lap": False, "ink_1bit": m_k, "cont_full": c_k,
+                }
+                if is_base_tier:
+                    light_or_single_k.append(entry_k)
+                    base_masks_by_aile[aile_id] = (ch_name, m_k)
+                else:
+                    dark_dual_k.append(entry_k)
+                    if aile_id in base_masks_by_aile:
+                        b_name, b_mask = base_masks_by_aile[aile_id]
+                        dual_pairs_for_dod.append((ch_name, m_k, b_name, b_mask))
+
+            if need_acik:
+                entry_a = {
+                    "ad": ch_name, "rgb": list(t_info["rgb"]), "rol": base_rol if base_rol == "lap" else "tram",
+                    "solidity": 16, "aile": aile_id, "is_lap": False, "ink_1bit": m_a, "cont_full": c_a,
+                }
+                if is_base_tier:
+                    light_or_single_a.append(entry_a)
+                else:
+                    dark_dual_a.append(entry_a)
+
+        # Siyah Kanali: stroke_mask -> %100 kati (1.0, TRAMSIZ); grad_mask -> yumusak golge (tramli); flat_mask -> 0.0
+        if args.siyah_mod == "cmyk":
+            k_cmyk = extract_cmyk_k_density(rgb_full)
+            siyah_scale = args.max_ink_siyah * (1.0 - 0.5 * args.baski_aciklama)
+            d_siyah_grad = np.where(
+                grad_mask,
+                np.clip((k_cmyk - 0.035) / 0.965, 0.0, 1.0) * siyah_scale,
+                0.0,
+            ).astype(np.float32)
+        else:
+            C_full_s = cv2.resize(C_s, (W, H), interpolation=cv2.INTER_LINEAR)
+            L_start_k = np.where(C_full_s < 8.0, 50.0, 42.0).astype(np.float32)
+            siyah_scale = args.max_ink_siyah * (1.0 - 0.5 * args.baski_aciklama)
+            d_siyah_grad = np.where(
+                grad_mask,
+                np.clip((L_start_k - lab_full_L) / (L_start_k - 10.0), 0.0, 1.0) * siyah_scale,
+                0.0,
+            ).astype(np.float32)
+
+        d_siyah_grad[d_siyah_grad < eff_min_dot] = 0.0
+        d_siyah_full_k = np.where(stroke_mask, 1.0, d_siyah_grad).astype(np.float32)
+        d_siyah_full_a = np.where(stroke_mask, 1.0, np.clip(d_siyah_grad * 1.03, 0.0, 0.90)).astype(np.float32)
+
+        koyu_raw = []
+        acik_raw = []
+        if need_koyu:
+            c_bk_k, m_bk_k = screen_channel(d_siyah_full_k)
+            fon_mask = L.build_underbase_mask(fig_full, choke_px=args.choke, thin_choke_px=1, min_px=args.min_px)
+            # Figur icindeki duz acik krem/beyaz yazilarin choke ile incelmesini onle
+            eroded_fig = cv2.erode(fig_full.astype(np.uint8), L.disk(max(1, args.choke))) > 0
+            fon_mask |= (eroded_fig & flat_mask & (lab_full_L >= 84.0))
+            ust_b_list = []
+            if args.ust_beyaz:
+                ub = build_highlight_white_channel(rgb_full, fig_full, screen_params, min_dot=eff_min_dot, max_dot=eff_max_dot, min_px=args.min_px)
+                if ub is not None:
+                    ust_b_list.append(ub)
+            koyu_raw = (
+                [{"ad": "fon", "rgb": [255, 255, 255], "rol": "fon", "solidity": 100, "aile": -10, "is_lap": True, "ink_1bit": fon_mask, "cont_full": None}]
+                + ust_b_list
+                + light_or_single_k
+                + dark_dual_k
+                + [{"ad": "Siyah_tram", "rgb": [0, 0, 0], "rol": "tram", "solidity": 16, "aile": -1, "is_lap": False, "ink_1bit": m_bk_k, "cont_full": c_bk_k}]
+            )
+        if need_acik:
+            c_bk_a, m_bk_a = screen_channel(d_siyah_full_a)
+            acik_raw = (
+                light_or_single_a
+                + dark_dual_a
+                + [{"ad": "Siyah_tram", "rgb": [0, 0, 0], "rol": "tram", "solidity": 16, "aile": -1, "is_lap": False, "ink_1bit": m_bk_a, "cont_full": c_bk_a}]
+            )
 
     # Kayit Krosu (+) ve 4 Alanli Film Bilgi Etiketi Ekleme
     def apply_stamping_to_set(ch_list):
@@ -1660,6 +2348,11 @@ def main():
 
     meta = {
         "mod": "yigilmali",
+        "ayrim_modu": args.ayrim_modu,
+        "ipek": args.ipek,
+        "nokta_sekli": args.nokta_sekli,
+        "cmyk_aci_modu": args.cmyk_aci_modu,
+        "ust_beyaz": args.ust_beyaz,
         "profil": args.profil,
         "siyah_mod": args.siyah_mod,
         "zemin_maske": args.zemin_maske,
