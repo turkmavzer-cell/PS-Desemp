@@ -35,13 +35,11 @@ MECHI33_SYSTEM_INSTRUCTION = (
 )
 
 MECHI33_LICENSE_SAFE_SYSTEM_INSTRUCTION = (
-    "You are a Two-Stage Copyright-Safe 2D Textile Graphic Redesign & Production Engine. "
-    "Operational Principle: 'Step 1: Transform into a 100% Original Copyright-Free Design -> Step 2: Render as a Clean Flat 2D 4K Print Artwork'. "
-    "NEVER replicate third-party trademarks, brand names, logos, signature brand symbols, or copyrighted character likenesses. "
-    "First, creatively modify and redesign the character/figure features, outfit details, symbols, and wording so the design is 100% original and royalty-free. "
-    "Second, render that newly redesigned original graphic from scratch on an idealized, perfectly flat 2D digital canvas (completely stripping the t-shirt, "
-    "garment silhouette, collar, sleeves, fabric wrinkles, folds, and lighting shadows) with strict 0.0° horizontal and 90.0° vertical architectural alignment. "
-    "Output strictly ONE standalone flat 2D graphic artwork image."
+    "You are a 2D apparel graphic print specialist. "
+    "First, make minimal subtle adjustments to the graphic in the reference image so it is an original, "
+    "non-infringing version while preserving the same overall visual layout, pose, drawing style, and color energy. "
+    "Then produce a crystal-clear, sharp, high-resolution, completely flat 2D standalone print graphic on a solid "
+    "background with straight level horizontal and vertical alignment and clean margins, removing any garment or folds."
 )
 
 SOURCE_CONDITIONS: Dict[str, dict] = {
@@ -642,10 +640,10 @@ def analyze_with_gemini_vision(
     overrides: dict,
     model: str = "gemini-2.5-flash",
 ) -> dict:
-    """Gemini Vision ile 7 maddelik MeChi 3.3 adli gorsel analizi yapar."""
+    """Gemini Vision ile 7 maddelik MeChi 3.3 adli gorsel analizi yapar (otomatik model yedekli)."""
     b64 = _encode_vision_jpeg_b64(image_path)
     measured_pal = ", ".join(f"{p['name_en']} ({p['hex']})" for p in metrics.palette)
-    source_cond = str(overrides.get("source_condition") or "worn_garment")
+    source_cond = str(overrides.get("source_condition") or "auto")
     render_style = str(overrides.get("render_style") or "auto")
     hint_lines = []
     if overrides.get("custom_text"):
@@ -654,8 +652,7 @@ def analyze_with_gemini_vision(
         hint_lines.append(f"User repair focus note: {overrides['extra_note']}")
     if overrides.get("license_safe"):
         hint_lines.append(
-            "COPYRIGHT-SAFE REDESIGN MODE ACTIVE: Describe the subject, character, and framing in generic, royalty-free terms "
-            "(never name third-party brands or copyrighted characters; suggest original redesigned features and replace brand text with '[YOUR OWN TEXT]')."
+            "ORIGINAL REDESIGN MODE: Describe the mood, layout, and colors in generic original terms without brand or character names."
         )
 
     prompt = (
@@ -669,7 +666,8 @@ def analyze_with_gemini_vision(
         f"has_rect_frame={metrics.has_rect_frame}, has_text_bands={metrics.has_text_bands} (text_tilt={metrics.text_band_tilt_deg}), "
         f"suggested_scope={metrics.suggested_scope}, "
         f"suggested_bg={metrics.suggested_bg_mode} ({metrics.bg_hex}), measured_palette=[{measured_pal}].\n"
-        f"Requested source condition='{source_cond}', requested render style='{render_style}'.\n"
+        f"Requested source condition='{source_cond}' (if 'auto', classify accurately as worn_garment, flat_wrinkled, lowres_damaged, or coated_textured), "
+        f"requested render style='{render_style}'.\n"
         + ("\n".join(hint_lines) + "\n" if hint_lines else "")
         + "Inspect the image across all 7 forensic checklist items:\n"
         "1) Scope (A1 all-over repeating pattern vs A2 isolated garment placement graphic)\n"
@@ -681,6 +679,7 @@ def analyze_with_gemini_vision(
         "7) Exact typography protocol: CRITICAL RULE — when hand-drawn, brush-textured, or stylized text sits on a 3D fabric fold or warped garment curve, ALWAYS select 'C4' (Hybrid Geometry Reset) instead of 'C1'!\n"
         "Return ONLY valid JSON:\n"
         "{\n"
+        '  "source_condition": "worn_garment, flat_wrinkled, lowres_damaged, or coated_textured",\n'
         '  "scope_a": "A1 or A2",\n'
         '  "bg_b": "B1 or B2 or B3",\n'
         '  "bg_hex": "#HEXCODE of idealized flat background",\n'
@@ -692,13 +691,13 @@ def analyze_with_gemini_vision(
         '  "general_subject_en": "concise English summary of the graphic/pattern to recreate",\n'
         '  "motif_geometry_en": "detailed English description of every motif, figure, symmetry, spacing, and relative placement",\n'
         '  "fine_details_en": "detailed English description of line weights, stipple dots, contours, cross-hatching, and textures",\n'
+        '  "geometric_defects_en": "specific frame tilt, perspective keystone skew, or text-baseline curvature defects detected (or none)",\n'
         '  "damage_repair_en": "specific 3D folds, sleeves, hair, glare, blur, missing edges, or garment curves to strip and reconstruct via Smart UV Unwrap",\n'
         '  "palette_en": "clean idealized solid spot color roles with HEX codes",\n'
         '  "summary_tr": "2-3 cumle Turkce adli ozet: ne algilandi, hangi geometrik bozulmalar sifirdan yeniden yaratilacak"\n'
         "}"
     )
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key.strip()}"
     payload = {
         "contents": [
             {
@@ -710,9 +709,28 @@ def analyze_with_gemini_vision(
         ],
         "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
     }
-    resp = requests.post(url, json=payload, timeout=60)
-    if resp.status_code != 200:
-        raise RuntimeError(f"Gemini Vision HTTP {resp.status_code}: {resp.text[:250]}")
+    models_to_try = [model] + [m for m in ("gemini-2.5-flash", "gemini-2.0-flash") if m != model]
+    resp = None
+    last_err = ""
+    for idx, mdl in enumerate(models_to_try):
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{mdl}:generateContent?key={api_key.strip()}"
+        try:
+            cand_resp = requests.post(url, json=payload, timeout=60)
+        except Exception as exc:
+            last_err = str(exc)
+            if idx < len(models_to_try) - 1:
+                continue
+            raise RuntimeError(f"Gemini Vision bağlantı hatası: {last_err}") from exc
+        if cand_resp.status_code == 200:
+            resp = cand_resp
+            break
+        last_err = f"HTTP {cand_resp.status_code}: {cand_resp.text[:250]}"
+        if cand_resp.status_code in (404, 429, 503) and idx < len(models_to_try) - 1:
+            continue
+        raise RuntimeError(f"Gemini Vision {last_err}")
+
+    if resp is None:
+        raise RuntimeError(f"Gemini Vision başarısız: {last_err}")
 
     parts = ((resp.json().get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
     raw_txt = "".join(p.get("text", "") for p in parts).strip()
@@ -902,46 +920,65 @@ def build_mechi33_prompt(analysis: dict) -> str:
         )
 
     if license_safe:
-        custom_brand_line = (
-            f"Display the user's custom replacement text '{detected_text}' (or '[YOUR OWN TEXT]' for secondary brand slogans)"
+        text_clause = (
+            f", replacing the text with '{detected_text}'"
             if detected_text
-            else "Replace all brand headlines and slogans with '[YOUR OWN TEXT]' (or original generic streetwear wording)"
+            else ", adjusting any brand wording into clean generic lettering"
         )
-        if text_c == "C3":
-            ls_typo_line = (
-                "Remove all brand names, signatures, tags, and watermarks completely; if a headline slot exists in the layout, "
-                "use '[YOUR OWN TEXT]' or leave it as pure graphic framing."
+        if bg_b == "B1":
+            bg_natural = "solid pure white (#FFFFFF)"
+        elif bg_b == "B2":
+            bg_natural = "solid pure black (#000000)"
+        else:
+            bg_natural = f"solid flat {bg_desc_en} ({bg_hex})"
+
+        if source_condition == "coated_textured":
+            surface_clause = (
+                "remove the leather or coated canvas texture, shadows, and surface grain completely "
+                "so only the clean flat 2D graphic remains"
             )
         else:
-            ls_typo_line = (
-                f"Typography Redesign & 0.0° Horizontal Baseline Lock: Strip all third-party brand names, designer signatures, and copyright years. "
-                f"{custom_brand_line} in a clean, geometrically precise {font_style_en} font aligned on a mathematically straight "
-                f"0.0° horizontal baseline with 90.0° upright vertical letter stems (no curved, drooping, or slanted baselines)."
+            surface_clause = (
+                "remove the t-shirt, fabric folds, shadows, and perspective completely "
+                "so only the clean flat 2D graphic remains"
             )
 
-        ls_prohibit = list(prohibit_lines)
-        ls_prohibit.append(
-            "- DO NOT copy any third-party brand names, designer names, trademarked logos, brand arrows/crosses, watermarks, or exact copyrighted character faces."
+        clipped_sides = tuple(analysis.get("clipped_sides") or ())
+        rec_aspect = str(analysis.get("recommended_aspect") or "1:1")
+        clip_natural = (
+            f", leaving extra space at the {', '.join(clipped_sides)} edge so nothing is cut off"
+            if clipped_sides
+            else ""
         )
+        if scope_a == "A1":
+            scope_short = "Extend the pattern evenly edge-to-edge across the entire canvas."
+        else:
+            scope_short = (
+                f"Center the complete uncropped graphic ({rec_aspect} framing) with clean 10-12% "
+                f"background margin on all four sides{clip_natural}."
+            )
+
+        style_short_map = {
+            "flat_vector": " Keep the finish as clean flat solid-color vector art with sharp edges.",
+            "stipple_dot": " Preserve clean stipple dot-matrix and halftone shading details.",
+            "painterly_2d": " Keep crisp 2D editorial illustration shading and clean outlines.",
+        }
+        style_short = style_short_map.get(render_style, "")
+
+        geom_short = (
+            " Keep all borders, brackets, and text baselines straight and level "
+            "(0° horizontal, 90° vertical) with no slant or curve."
+        )
+        extra_note_clean = str(analysis.get("extra_note") or "").strip()
+        extra_short = f" Extra adjustment: {extra_note_clean}." if extra_note_clean else ""
+
         return (
-            "[STEP 1 — COPYRIGHT-SAFE ORIGINAL REDESIGN FIRST]\n"
-            "First, modify and transform the visual concept from the reference image so that it is 100% original, copyright-free, and free of any third-party intellectual property:\n"
-            "- Character & Figure Transformation: Keep the general vibe, pose energy, and artistic drawing technique, but distinctly redesign the character's facial features, head/hat details, expression, and outfit accessories into a fresh, original street-art character.\n"
-            "- Brand & Symbol Replacement: Replace any recognizable brand logos, trademarked diagonal arrows/crosses, or proprietary insignias with original geometric framing brackets, abstract splatter accents, and original graphic emblems.\n"
-            f"- Text & Wording Replacement: {ls_typo_line}\n\n"
-            "[STEP 2 — CLEAN 4K FLAT 2D PRODUCTION ARTWORK]\n"
-            f"Second, generate this newly redesigned original {subject_en} from scratch as a crystal-clear, ultra-high-resolution (4K, 3840px+), "
-            "orthographically flat 2D standalone digital production graphic—completely removing the t-shirt, garment folds, and photographic surface:\n"
-            f"- Surface & Substrate Stripping: {cond_spec['unwrap_en']} Systematically eliminate all {damage_en}.\n"
-            f"- Composition & Safe Margins: {comp_mod}\n"
-            f"- Render Technique & Detail Clarity: {details_en} {style_block}\n"
-            f"- Idealized Spot-Color Palette: Render with clean, solid, uniform, high-contrast spot colors free of lighting gradients: {palette_en}\n"
-            f"- Background Specification: {bg_spec}"
-            + geo_lock_block
-            + "\n\n[CRITICAL PROHIBITION PROTOCOL - HIGHEST PRIORITY]\n"
-            "CRITICAL: Present the final output strictly as a standalone, pure 2D flat graphic artwork.\n"
-            + "\n".join(ls_prohibit)
-            + "\nEvery color region must have uniform luminance and flat, print-ready consistency across the entire canvas."
+            "First, make minimal subtle adjustments to the graphic in this image (modifying only brand logos, words, "
+            "and subtle character details just enough to be an original, non-infringing version while keeping the same "
+            f"visual layout, pose, drawing style, and color energy{text_clause}).\n\n"
+            "Then, recreate this adjusted graphic from scratch as a crystal-clear, sharp, 4K orthographically flat 2D "
+            f"standalone print artwork on an idealized taut digital canvas with a {bg_natural} background — {surface_clause}. "
+            f"{scope_short}{geom_short}{style_short} Use clean uniform colors ({palette_en}).{extra_short}"
         )
 
     return (
@@ -1002,9 +1039,20 @@ def analyze_and_build_repair_prompt(
         except Exception:
             rectified_ref_path = ""
 
-    source_condition = str(overrides.get("source_condition") or "worn_garment")
-    if source_condition not in SOURCE_CONDITIONS:
-        source_condition = "worn_garment"
+    raw_cond = str(overrides.get("source_condition") or "auto")
+    user_locked_cond = raw_cond in SOURCE_CONDITIONS
+    if user_locked_cond:
+        source_condition = raw_cond
+    else:
+        if metrics.lighting_unevenness >= 11.0 or metrics.keystone_skew_deg >= 2.0:
+            source_condition = "worn_garment"
+        elif metrics.has_fabric_grain and metrics.flatness_ratio < 0.72:
+            source_condition = "flat_wrinkled"
+        elif metrics.is_low_res or metrics.blur_score < 120.0:
+            source_condition = "lowres_damaged"
+        else:
+            source_condition = "worn_garment"
+
     render_style = str(overrides.get("render_style") or "auto")
     if render_style not in RENDER_STYLES:
         render_style = "auto"
@@ -1067,6 +1115,18 @@ def analyze_and_build_repair_prompt(
             if isinstance(vis, dict) and vis.get("general_subject_en"):
                 analysis.update(vis)
                 analysis_mode = "gemini_vision"
+                if not user_locked_cond and vis.get("source_condition") in SOURCE_CONDITIONS:
+                    source_condition = str(vis["source_condition"])
+                geom_def = str(vis.get("geometric_defects_en") or "").strip()
+                if geom_def and geom_def.lower() != "none":
+                    analysis["damage_repair_en"] = f"{analysis['damage_repair_en']} Geometric defects to reset: {geom_def}"
+                is_folded_or_tilted = (
+                    source_condition in ("worn_garment", "flat_wrinkled")
+                    or metrics.lighting_unevenness >= 11.0
+                    or abs(metrics.tilt_deg) >= 1.2
+                    or abs(metrics.text_band_tilt_deg) >= 1.2
+                    or metrics.keystone_skew_deg >= 1.8
+                )
         except Exception as exc:
             fallback_note = f"Gemini Vision bağlantısı sağlanamadı, yerel Python analizi kullanıldı ({exc})."
 
@@ -1090,7 +1150,10 @@ def analyze_and_build_repair_prompt(
     if overrides.get("custom_text"):
         analysis["detected_text"] = overrides["custom_text"].strip()
     if overrides.get("extra_note"):
+        analysis["extra_note"] = overrides["extra_note"].strip()
         analysis["motif_geometry_en"] = f"{analysis['motif_geometry_en']} Focus: {overrides['extra_note']}"
+    else:
+        analysis["extra_note"] = ""
 
     analysis["source_condition"] = source_condition
     analysis["render_style"] = render_style if render_style != "auto" else (

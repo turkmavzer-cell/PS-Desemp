@@ -322,20 +322,68 @@ class TestMeChiCore(unittest.TestCase):
                     "source_condition": "coated_textured",
                     "license_safe": True,
                     "custom_text": "LOGO TEXT",
+                    "render_style": "flat_vector",
                     "text_mode": "C2",
                 },
                 api_key="",
             )
             self.assertIn("coated canvas", res_tex.full_prompt.lower())
             self.assertIn("leather", res_tex.full_prompt.lower())
-            self.assertIn("[YOUR OWN TEXT]", res_tex.full_prompt)
-            self.assertIn("[STEP 1 — COPYRIGHT-SAFE ORIGINAL REDESIGN FIRST]", res_tex.full_prompt)
-            self.assertIn("[STEP 2 — CLEAN 4K FLAT 2D PRODUCTION ARTWORK]", res_tex.full_prompt)
-            self.assertNotIn("ABSOLUTE RECREATION", res_tex.full_prompt)
-            self.assertNotIn("100% fidelity to the original motif shapes", res_tex.full_prompt)
-            self.assertNotIn("faithfully replicate every single detail", res_tex.full_prompt)
+            self.assertIn("make minimal subtle adjustments", res_tex.full_prompt)
+            self.assertIn("keeping the same visual layout, pose, drawing style, and color energy", res_tex.full_prompt)
+            self.assertIn("recreate this adjusted graphic from scratch", res_tex.full_prompt)
+            self.assertIn("orthographically flat 2D standalone print artwork", res_tex.full_prompt)
+            self.assertIn("0°", res_tex.full_prompt)
+            self.assertIn("90°", res_tex.full_prompt)
+            self.assertIn("LOGO TEXT", res_tex.full_prompt)
             self.assertIn("TELİFSİZ", res_tex.detected_modules)
-            self.assertIn("Two-Stage Copyright-Safe", res_tex.system_instruction)
+            self.assertIn("2D apparel graphic print specialist", res_tex.system_instruction)
+
+            res_ls_notxt = analyze_and_build_repair_prompt(
+                iso_path,
+                overrides={"source_condition": "worn_garment", "license_safe": True},
+                api_key="",
+            )
+            self.assertIn("adjusting any brand wording into clean generic lettering", res_ls_notxt.full_prompt)
+
+            res_ls_variant = analyze_and_build_repair_prompt(
+                iso_path,
+                overrides={
+                    "source_condition": "worn_garment",
+                    "license_safe": True,
+                    "render_style": "painterly_2d",
+                    "extra_note": "make outline thicker",
+                },
+                api_key="",
+            )
+            self.assertNotEqual(res_ls_notxt.full_prompt, res_ls_variant.full_prompt)
+            self.assertIn("make outline thicker", res_ls_variant.full_prompt)
+            self.assertIn("2D editorial illustration shading", res_ls_variant.full_prompt)
+
+            forbidden_triggers = (
+                "loose inspiration",
+                "STREET STUDIO",
+                "invent an original",
+                "ABSOLUTE RECREATION",
+                "CRITICAL PROHIBITION",
+                "STRICTLY FORBIDDEN",
+                "human body parts",
+                "intellectual property",
+                "copyrighted",
+                "trademarked",
+                "stripping",
+                "Strip all",
+                "[STEP 1",
+            )
+            for sample_txt in (
+                res_tex.full_prompt,
+                res_tex.system_instruction,
+                res_ls_notxt.full_prompt,
+                res_ls_notxt.system_instruction,
+                res_ls_variant.full_prompt,
+            ):
+                for bad in forbidden_triggers:
+                    self.assertNotIn(bad.lower(), sample_txt.lower(), f"Tetikleyici ifade bulundu: {bad}")
 
             # Gemini API payload dogrulamasi (mock POST)
             env_file = os.path.join(tmp, ".env")

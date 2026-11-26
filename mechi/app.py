@@ -34,14 +34,24 @@ def _notify_running_instance() -> bool:
 
 
 def main() -> int:
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("MeChi.Studio.Desktop.1")
+        except Exception:
+            pass
+
     ensure_dirs()
     app = QApplication(sys.argv)
     app.setApplicationName("MeChi")
     app.setQuitOnLastWindowClosed(True)
 
     ico_path = os.path.join(ASSETS_DIR, "mechi.ico")
-    if os.path.exists(ico_path):
-        app_icon = QIcon(ico_path)
+    png_path = os.path.join(ASSETS_DIR, "mechi.png")
+    icon_src = ico_path if os.path.exists(ico_path) else (png_path if os.path.exists(png_path) else "")
+    if icon_src:
+        app_icon = QIcon(icon_src)
         app.setWindowIcon(app_icon)
     else:
         app_icon = QIcon()

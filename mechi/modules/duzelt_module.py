@@ -2,16 +2,14 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QApplication,
-    QCheckBox,
-    QComboBox,
     QFileDialog,
-    QFormLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -123,102 +121,13 @@ class DuzeltModule(BaseToolModule):
         src_outer.addWidget(self.lbl_src_thumb)
         lay.addWidget(sec_src)
 
-        # 2) Yeniden Yaratim Protokolu
-        sec_opts = QFrame()
-        sec_opts.setObjectName("CleanSection")
-        o_lay = QVBoxLayout(sec_opts)
-        o_lay.setContentsMargins(18, 16, 18, 16)
-        o_lay.setSpacing(10)
+        # Analiz modu bilgisi + tek ana buton
+        self.lbl_vision_hint = QLabel("")
+        self.lbl_vision_hint.setObjectName("SubtleHint")
+        self.lbl_vision_hint.setWordWrap(True)
+        lay.addWidget(self.lbl_vision_hint)
 
-        lbl_o = QLabel("Yeniden Yaratım Protokolü (Sıfırdan 2D)")
-        lbl_o.setObjectName("SectionLabel")
-        o_lay.addWidget(lbl_o)
-
-        form = QFormLayout()
-        form.setSpacing(10)
-
-        row_cond = QHBoxLayout()
-        row_cond.setSpacing(10)
-        self.cmb_condition = QComboBox()
-        self.cmb_condition.addItem("Kaynak: Giyilmiş Tişört / Manken", "worn_garment")
-        self.cmb_condition.addItem("Kaynak: Buruşuk Kumaş / Masa", "flat_wrinkled")
-        self.cmb_condition.addItem("Kaynak: Düşük Çözünürlük / Yıpranmış", "lowres_damaged")
-        self.cmb_condition.addItem("Kaynak: Dokulu Yüzey (Kanvas/Deri)", "coated_textured")
-
-        self.cmb_style = QComboBox()
-        self.cmb_style.addItem("Teknik: Otomatik (Kaynak Stili)", "auto")
-        self.cmb_style.addItem("Teknik: Düz Vektörel Spot (Tramsız)", "flat_vector")
-        self.cmb_style.addItem("Teknik: Noktalı / Gravür / Tramlı", "stipple_dot")
-        self.cmb_style.addItem("Teknik: Temiz 2D İllüstrasyon", "painterly_2d")
-        row_cond.addWidget(self.cmb_condition, 1)
-        row_cond.addWidget(self.cmb_style, 1)
-        form.addRow("Kaynak ve Teknik:", row_cond)
-
-        row_ab = QHBoxLayout()
-        row_ab.setSpacing(10)
-        self.cmb_scope = QComboBox()
-        self.cmb_scope.addItem("Kapsam: Otomatik Algıla", "auto")
-        self.cmb_scope.addItem("Tekil Baskı (A2)", "A2")
-        self.cmb_scope.addItem("Tam Tuval Metraj (A1)", "A1")
-
-        self.cmb_bg = QComboBox()
-        self.cmb_bg.addItem("Zemin: Otomatik Algıla", "auto")
-        self.cmb_bg.addItem("Saf Beyaz (#FFFFFF - B1)", "B1")
-        self.cmb_bg.addItem("Saf Siyah (#000000 - B2)", "B2")
-        self.cmb_bg.addItem("Özel Düz Zemin (B3)", "B3")
-        row_ab.addWidget(self.cmb_scope, 1)
-        row_ab.addWidget(self.cmb_bg, 1)
-        form.addRow("Kapsam ve Zemin:", row_ab)
-
-        self.cmb_text = QComboBox()
-        self.cmb_text.addItem("Yazı: Otomatik Algıla", "auto")
-        self.cmb_text.addItem("Metin Yok / Etiket Sil (C3)", "C3")
-        self.cmb_text.addItem("Sanatsal / Noktalı Yazı (C1)", "C1")
-        self.cmb_text.addItem("Yamuk Standart Font Düzelt (C2)", "C2")
-        self.cmb_text.addItem("Kıvrımlı Fırça Yazı — Geometri Sıfırla (C4)", "C4")
-        form.addRow("Tipografi Modülü:", self.cmb_text)
-
-        row_txt = QHBoxLayout()
-        row_txt.setSpacing(10)
-        self.txt_custom_text = QLineEdit()
-        self.txt_custom_text.setPlaceholderText("Görseldeki tam yazı (opsiyonel)")
-        self.txt_extra_note = QLineEdit()
-        self.txt_extra_note.setPlaceholderText("Ek onarım notu (opsiyonel)")
-        row_txt.addWidget(self.txt_custom_text, 1)
-        row_txt.addWidget(self.txt_extra_note, 1)
-        form.addRow("Metin ve Ek Not:", row_txt)
-
-        row_lock = QHBoxLayout()
-        row_lock.setSpacing(12)
-        self.chk_strict_single = QCheckBox("Tek parça ve sıfır uydurma")
-        self.chk_strict_single.setChecked(True)
-        self.chk_pre_rectify = QCheckBox("Referansı geometrik ön-düzelt (Deskew + %12 kenar boşluğu)")
-        self.chk_pre_rectify.setChecked(True)
-        row_lock.addWidget(self.chk_strict_single)
-        row_lock.addWidget(self.chk_pre_rectify)
-        row_lock.addStretch(1)
-        form.addRow("Koruma Kilidi:", row_lock)
-
-        row_lock2 = QHBoxLayout()
-        row_lock2.setSpacing(12)
-        self.chk_text_shape = QCheckBox("Yazıyı şekil gibi çiz")
-        self.chk_text_shape.setChecked(False)
-        self.chk_license_safe = QCheckBox("Telifsiz özgünleştir (Önce telifsiz değiştir → sonra düz 2D üret)")
-        self.chk_license_safe.setToolTip(
-            "1. Aşama: Karakter, marka adı, logo ve sembolleri telif filtresine takılmayacak şekilde özgünleştirir.\n"
-            "2. Aşama: Özgünleştirilen tasarımı tişörtsüz, kıvrımsız, 0°/90° hizalı düz 2D 4K baskı olarak üretir."
-        )
-        self.chk_license_safe.setChecked(False)
-        row_lock2.addWidget(self.chk_text_shape)
-        row_lock2.addWidget(self.chk_license_safe)
-        row_lock2.addStretch(1)
-        form.addRow("Ek Seçenekler:", row_lock2)
-
-        o_lay.addLayout(form)
-        lay.addWidget(sec_opts)
-
-        # Ana Buton
-        self.btn_analyze = QPushButton("Görseli Analiz Et ve Yeniden Yaratım Promptu Oluştur")
+        self.btn_analyze = QPushButton("Görseli Analiz Et ve Prompt Oluştur")
         self.btn_analyze.setObjectName("PrimaryButton")
         self.btn_analyze.setMinimumHeight(46)
         self.btn_analyze.clicked.connect(self.run_analysis)
@@ -364,6 +273,14 @@ class DuzeltModule(BaseToolModule):
         ok, _ = self.api_bridge.is_configured(cfg)
         self.btn_api_state.setText("API Hazır" if ok else "API Ayarla")
         self.btn_api_repair.setVisible(ok)
+        if get_env_key("GEMINI_API_KEY"):
+            self.lbl_vision_hint.setText(
+                "İnternet Derin Analiz (Gemini Vision) aktif — görseldeki motif, yazı ve geometri otomatik okunur."
+            )
+        else:
+            self.lbl_vision_hint.setText(
+                "Yerel Python Analizi aktif — görselin içeriğini (yazı/motif) otomatik okumak için sağ üstten ücretsiz Gemini API anahtarı ekleyebilirsiniz."
+            )
 
     def on_ps_context_changed(self, doc_info: Optional[dict]) -> None:
         self._active_doc = doc_info
@@ -415,18 +332,18 @@ class DuzeltModule(BaseToolModule):
         out_dir = cfg.get("output_dir") or os.getcwd()
         api_key = get_env_key("GEMINI_API_KEY")
         overrides = {
-            "source_condition": self.cmb_condition.currentData(),
-            "render_style": self.cmb_style.currentData(),
-            "scope": self.cmb_scope.currentData(),
-            "bg": self.cmb_bg.currentData(),
-            "text_mode": self.cmb_text.currentData(),
-            "custom_text": self.txt_custom_text.text().strip(),
-            "extra_note": self.txt_extra_note.text().strip(),
-            "strict_single_output": self.chk_strict_single.isChecked(),
-            "strict_zero_hallucination": self.chk_strict_single.isChecked(),
-            "treat_text_as_shape": self.chk_text_shape.isChecked(),
-            "license_safe": self.chk_license_safe.isChecked(),
-            "pre_rectify": self.chk_pre_rectify.isChecked(),
+            "source_condition": "auto",
+            "render_style": "auto",
+            "scope": "auto",
+            "bg": "auto",
+            "text_mode": "auto",
+            "custom_text": "",
+            "extra_note": "",
+            "strict_single_output": True,
+            "strict_zero_hallucination": True,
+            "treat_text_as_shape": False,
+            "license_safe": False,
+            "pre_rectify": True,
         }
         exp_name = self._active_doc["name"] if (use_ps and self._active_doc) else None
 
@@ -477,6 +394,7 @@ class DuzeltModule(BaseToolModule):
         self.job_finished.emit(True, "Görsel analizi ve düzeltme promptu hazır.")
 
     def apply_result_to_card(self, res: RepairPromptResult) -> None:
+        self.lbl_res_title.setText(f"✓ Yeniden yaratım promptu güncellendi ({time.strftime('%H:%M:%S')})")
         is_vis = res.analysis_mode == "gemini_vision"
         self.lbl_mode_badge.setText("Gemini Vision Derin Analiz" if is_vis else "Yerel Python Analizi")
         self.lbl_mode_badge.setObjectName("BadgeOk" if is_vis else "BadgeWarn")
